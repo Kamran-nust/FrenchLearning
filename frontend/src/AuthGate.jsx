@@ -14,10 +14,12 @@ const COLORS = {
 
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(undefined); // undefined = still checking
+  const [mode, setMode] = useState("signin"); // "signin" | "signup"
   const [email, setEmail] = useState("");
-  const [linkSent, setLinkSent] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [confirmSent, setConfirmSent] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -34,20 +36,32 @@ export default function AuthGate({ children }) {
     }
   }, [session]);
 
-  async function sendLink(e) {
+  async function submit(e) {
     e.preventDefault();
-    if (!email.trim()) return;
-    setSending(true);
+    if (!email.trim() || !password) return;
+    setSubmitting(true);
     setError("");
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
-    });
-    setSending(false);
-    if (error) {
-      setError(error.message);
+    if (mode === "signin") {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      setSubmitting(false);
+      if (error) setError(error.message);
     } else {
-      setLinkSent(true);
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      setSubmitting(false);
+      if (error) {
+        setError(error.message);
+      } else if (!data.session) {
+        // Project has "Confirm email" on - account created but needs a
+        // one-time email confirmation before it can sign in.
+        setConfirmSent(true);
+      }
     }
   }
 
@@ -70,14 +84,14 @@ export default function AuthGate({ children }) {
           French NCLC 7 Study App
         </div>
         <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 20 }}>
-          Sign in with your email to sync your progress.
+          {mode === "signin" ? "Sign in to sync your progress." : "Create an account to sync your progress."}
         </div>
-        {linkSent ? (
+        {confirmSent ? (
           <div style={{ fontSize: 13, color: COLORS.text }}>
-            Check <strong>{email}</strong> for a sign-in link.
+            Check <strong>{email}</strong> to confirm your account, then sign in.
           </div>
         ) : (
-          <form onSubmit={sendLink}>
+          <form onSubmit={submit}>
             <input
               type="email"
               required
@@ -86,11 +100,31 @@ export default function AuthGate({ children }) {
               onChange={(e) => setEmail(e.target.value)}
               style={input}
             />
-            <button type="submit" disabled={sending} style={button}>
-              {sending ? "Sending…" : "Send magic link"}
+            <input
+              type="password"
+              required
+              minLength={6}
+              placeholder="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={input}
+            />
+            <button type="submit" disabled={submitting} style={button}>
+              {submitting ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
             </button>
             {error && <div style={{ color: "#F87171", fontSize: 12, marginTop: 10 }}>{error}</div>}
           </form>
+        )}
+        {!confirmSent && (
+          <button
+            onClick={() => {
+              setMode(mode === "signin" ? "signup" : "signin");
+              setError("");
+            }}
+            style={linkButton}
+          >
+            {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+          </button>
         )}
       </div>
     </div>
@@ -139,4 +173,16 @@ const button = {
   fontSize: 14,
   fontWeight: 500,
   cursor: "pointer",
+};
+
+const linkButton = {
+  display: "block",
+  width: "100%",
+  marginTop: 16,
+  background: "none",
+  border: "none",
+  color: COLORS.muted,
+  fontSize: 12,
+  cursor: "pointer",
+  textAlign: "center",
 };
