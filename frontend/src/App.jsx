@@ -1382,11 +1382,17 @@ function GrammarModule({ onBack, startDay }) {
   async function openChapterPages(book, chapters) {
     setPdfLoading(true);
     setPdfError("");
+    // Open the tab synchronously, inside the click handler, so it carries
+    // the user-gesture flag - popup blockers can silently drop window.open
+    // calls made after an await, once that window has lapsed.
+    const tab = window.open("", "_blank");
     try {
       const blob = await fetchGrammarPages(book, chapters);
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
+      if (tab) tab.location.href = url;
+      else window.open(url, "_blank");
     } catch (e) {
+      if (tab) tab.close();
       setPdfError("Couldn't load those pages. Try again.");
     } finally {
       setPdfLoading(false);
