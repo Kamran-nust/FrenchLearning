@@ -37,18 +37,15 @@ Deno.serve(async (req) => {
     }
 
     const bookInfo = BOOK_TOC[book];
-    const matched = bookInfo.chapters.filter((c) => chapters.includes(c.chapter));
+    const matched = bookInfo.chapters
+      .filter((c) => chapters.includes(c.chapter))
+      .sort((a, b) => a.chapter - b.chapter);
     if (matched.length === 0) {
       return new Response(JSON.stringify({ error: "No matching chapters found for " + book + ": " + chapters.join(",") }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // Merge into one contiguous range covering every requested chapter -
-    // in practice a day references one or two adjacent chapters.
-    const startPage = Math.min(...matched.map((c) => c.startPage));
-    const endPage = Math.max(...matched.map((c) => c.endPage));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -69,13 +66,25 @@ Deno.serve(async (req) => {
     const sourceDoc = await PDFDocument.load(sourceBytes);
     const totalPages = sourceDoc.getPageCount();
 
-    // Pages in BOOK_TOC are 1-indexed, human page numbers; pdf-lib is
-    // 0-indexed. Clamp defensively in case a book's actual page count
-    // differs slightly from what was recorded.
-    const firstIdx = Math.max(0, startPage - 1);
-    const lastIdx = Math.min(totalPages - 1, endPage - 1);
+    // Each requested chapter contributes only its own pages - not the full
+    // span from the first requested chapter's start to the last one's end,
+    // which would silently pull in any chapters in between that weren't
+    // actually asked for (a day can reference non-adjacent chapters, e.g.
+    // Ch. 1 and Ch. 4 without Ch. 2-3). Pages in BOOK_TOC are 1-indexed,
+    // human page numbers; pdf-lib is 0-indexed. Clamp defensively in case a
+    // book's actual page count differs slightly from what was recorded.
     const pageIndices: number[] = [];
-    for (let i = firstIdx; i <= lastIdx; i++) pageIndices.push(i);
+    const seen = new Set<number>();
+    for (const c of matched) {
+      const firstIdx = Math.max(0, c.startPage - 1);
+      const lastIdx = Math.min(totalPages - 1, c.endPage - 1);
+      for (let i = firstIdx; i <= lastIdx; i++) {
+        if (!seen.has(i)) {
+          seen.add(i);
+          pageIndices.push(i);
+        }
+      }
+    }
 
     const outDoc = await PDFDocument.create();
     const copiedPages = await outDoc.copyPages(sourceDoc, pageIndices);
