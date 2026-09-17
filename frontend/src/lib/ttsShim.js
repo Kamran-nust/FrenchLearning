@@ -16,14 +16,14 @@ export function installTtsShim() {
     }
   }
 
-  window.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) {
+  const shimUtterance = function SpeechSynthesisUtterance(text) {
     this.text = text;
     this.lang = "";
     this.voice = null;
     this.rate = 1;
   };
 
-  window.speechSynthesis = {
+  const shimSynthesis = {
     getVoices() {
       return [];
     },
@@ -51,4 +51,19 @@ export function installTtsShim() {
       }
     },
   };
+
+  // Chrome/Edge define `window.speechSynthesis` as a getter-only accessor
+  // (part of the native Web Speech API), so a plain assignment throws
+  // "Cannot set property speechSynthesis of #<Window> which has only a
+  // getter". Object.defineProperty overrides it instead.
+  Object.defineProperty(window, "SpeechSynthesisUtterance", {
+    value: shimUtterance,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(window, "speechSynthesis", {
+    value: shimSynthesis,
+    writable: true,
+    configurable: true,
+  });
 }
