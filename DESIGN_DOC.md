@@ -411,6 +411,62 @@ its page range extending all the way to the book's back matter (index,
 annexes, etc.) rather than a sensible chapter-sized span — corrected to use
 each book's typical chapter length as the estimate for its final chapter.
 
+Also fixed post-launch: `grammar-pages` originally merged every requested
+chapter into one `min(startPage)..max(endPage)` span, which silently pulled
+in any chapters *in between* two non-adjacent requested chapters (e.g. Day 1
+asks for Ch. 1 and Ch. 4, but got Ch. 1 through Ch. 4 inclusive — 10 pages
+instead of the correct 4). Now each requested chapter contributes only its
+own pages, unioned together, so non-adjacent chapters correctly skip
+whatever's between them.
+
+### 9.3 Authentication
+
+**Current: email + password.** Started with Supabase magic-link (passwordless
+email OTP), but that requires a round-trip email on *every* sign-in, and hit
+Supabase's free-tier SMTP rate limit twice within one testing session — bad
+fit for a single-user app that just needs to stay signed in. Switched to
+email + password: one email at account creation (confirmation only), then
+sign-in is instant with no email dependency. Session persists in
+`localStorage` afterward regardless of which method is used, so day-to-day
+this rarely even shows up.
+
+**Planned upgrade: OAuth (Google sign-in).** Parked for later, same reasoning
+pattern as the TTS/PDF upgrades in §6.1/§9.1 — not something blocking current
+use, worth doing when convenient. Would mean registering an OAuth app in
+Google Cloud Console (the same project already used for TTS) and adding a
+"Sign in with Google" button alongside/instead of the password form via
+`supabase.auth.signInWithOAuth`. No changes needed to the data layer — auth
+method is orthogonal to how `app_state` rows are scoped (see below).
+
+**Multi-user readiness.** Asked and worth recording: would supporting more
+than one person require a heavy rebuild? **No** — the data layer was already
+built per-user, not single-user-hardcoded:
+- `app_state(user_id, key, value)` is keyed by `user_id` with RLS scoped to
+  `auth.uid() = user_id` (§8.2/migration `0001_app_state.sql`) — this was
+  already isolating rows per authenticated user, it just happened that only
+  one person was using it.
+- The frontend's storage/TTS shims (`windowStorage.js`, `ttsShim.js`) install
+  using whichever user is currently signed in (`session.user.id`), not a
+  fixed ID.
+- Static content (days, cards, grammar chapters) is shared/baked into the
+  app for everyone — correct either way, since it's the same curriculum.
+- The two Edge Functions (`text-to-speech`, `grammar-pages`) are stateless
+  and already user-agnostic — no per-user branching needed.
+
+What *would* actually be needed to open this up to more people:
+1. A real signup flow (already exists as of the password-auth switch above —
+   the sign-in/sign-up toggle in `AuthGate.jsx`).
+2. Watching the shared Google Cloud TTS free-tier quota (1M characters/month
+   per *project*, not per user) — fine at small scale, would need attention
+   if usage grew substantially.
+3. Product-level things out of scope for this doc if it ever became more
+   than a personal tool (terms of service, support, etc.) — not a code
+   change.
+
+In short: the hard part (per-user data isolation) is already done as a
+side effect of using Supabase Auth + RLS from the start, rather than
+something that needs retrofitting.
+
 ---
 
 ## 10. Decisions log
