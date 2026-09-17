@@ -1329,6 +1329,7 @@ function GrammarModule({ onBack, startDay }) {
   const [viewDay, setViewDay] = useState(1);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  const [pdfView, setPdfView] = useState(null); // { url, label } while viewing a PDF in-app
 
   useEffect(() => {
     let cancelled = false;
@@ -1382,21 +1383,20 @@ function GrammarModule({ onBack, startDay }) {
   async function openChapterPages(book, chapters) {
     setPdfLoading(true);
     setPdfError("");
-    // Open the tab synchronously, inside the click handler, so it carries
-    // the user-gesture flag - popup blockers can silently drop window.open
-    // calls made after an await, once that window has lapsed.
-    const tab = window.open("", "_blank");
     try {
       const blob = await fetchGrammarPages(book, chapters);
       const url = URL.createObjectURL(blob);
-      if (tab) tab.location.href = url;
-      else window.open(url, "_blank");
+      setPdfView({ url, label: book + " ch. " + chapters.join(", ") });
     } catch (e) {
-      if (tab) tab.close();
       setPdfError("Couldn't load those pages. Try again.");
     } finally {
       setPdfLoading(false);
     }
+  }
+
+  function closePdfView() {
+    if (pdfView) URL.revokeObjectURL(pdfView.url);
+    setPdfView(null);
   }
 
   function goPrevPage() {
@@ -1499,6 +1499,32 @@ function GrammarModule({ onBack, startDay }) {
   );
 
   const wrapStyle = { background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" };
+
+  if (pdfView) {
+    return (
+      <div style={wrapStyle} className="min-h-screen flex flex-col">
+        <GlobalStyle />
+        <div
+          className="flex items-center gap-2 px-4 py-3 shrink-0"
+          style={{ borderBottom: "1px solid " + COLORS.border }}
+        >
+          <button
+            onClick={closePdfView}
+            aria-label="Back to grammar day"
+            className="flex items-center gap-1 -ml-1 px-1 py-1 rounded-full"
+            style={{ color: COLORS.text }}
+          >
+            <ChevronLeft size={18} color={COLORS.text} />
+            <span className="text-sm">Back</span>
+          </button>
+          <span className="text-xs" style={{ color: COLORS.muted }}>
+            {pdfView.label}
+          </span>
+        </div>
+        <iframe title="Grammar chapter pages" src={pdfView.url} className="flex-1 w-full" style={{ border: "none" }} />
+      </div>
+    );
+  }
 
   if (phase === "loading") {
     return (
