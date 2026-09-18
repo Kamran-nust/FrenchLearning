@@ -406,6 +406,24 @@ those pages with `pdf-lib`, and returns a small standalone PDF.
 extracting chapter 1 correctly pulled pages 8–9, confirmed by rendering the
 result and visually matching it to the table of contents.
 
+**Backend function 3 — `writing-feedback`:** takes `{ task, draft }` from
+the Writing module. Found during the post-deployment code-quality pass:
+the original artifact's "Get feedback" button called
+`api.anthropic.com` directly from the browser with no API key — worked
+inside the Claude.ai artifact sandbox (which proxies that call
+transparently) but was silently dead in the real deployed app. Fixed with
+the same proxy pattern as `text-to-speech`: the prompt is built
+server-side and the function calls an LLM with a server-held key, so the
+key never reaches the browser. **Chose Gemini 3.6 Flash over Claude** for
+this specific feature — free tier comfortably covers this app's usage (a
+couple of requests/day, far under Gemini's free ~250–500/day limit) at
+comparable quality for a well-scoped grammar-feedback task, versus
+Claude's ~$1.50–2 estimated total cost for the whole 301-day plan (still
+cheap, but not literally free). Requires a Supabase secret
+`GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey).
+**Verified working** end-to-end live in the browser: real French input
+with a missing accent produced accurate, correctly-formatted feedback.
+
 One fix made during this step: the last chapter of each book originally had
 its page range extending all the way to the book's back matter (index,
 annexes, etc.) rather than a sensible chapter-sized span — corrected to use
