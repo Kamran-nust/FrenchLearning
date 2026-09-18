@@ -3,6 +3,7 @@ import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Loader2, Sparkles }
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { todayKey, waitForStorage, diagnoseStorage } from "../shared/storage";
 import { WRITING_DAYS } from "../data/writingDays";
+import { fetchWritingFeedback } from "../lib/writingFeedback";
 
 const WRITING_TOTAL = WRITING_DAYS.length;
 
@@ -133,33 +134,7 @@ export default function WritingModule({ onBack, startDay }) {
     if (!draft.trim()) return;
     setFeedbackState("loading");
     try {
-      const prompt =
-        "You are a supportive French tutor helping a CLB7/NCLC7 exam candidate practice writing. " +
-        "The task they were given was: \"" +
-        viewed.x +
-        "\"\n\nHere is what they wrote:\n\"" +
-        draft +
-        "\"\n\nGive concise, encouraging feedback in English: (1) briefly note whether they met the content and length target, " +
-        "(2) address the specific grammar checkpoint mentioned in the task if there is one, quoting their exact phrase and the correction, " +
-        "(3) point out up to two other notable errors the same way, (4) end with one short tip for next time. " +
-        "Keep the whole reply under 150 words. Be warm but direct.";
-
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      const data = await response.json();
-      const text = (data.content || [])
-        .map((block) => (block.type === "text" ? block.text : ""))
-        .filter(Boolean)
-        .join("\n")
-        .trim();
-      if (!text) throw new Error("empty response");
+      const text = await fetchWritingFeedback(viewed.x, draft);
       const next = { ...entriesRef.current, [viewDay]: { ...(entriesRef.current[viewDay] || {}), text: draft, feedback: text } };
       entriesRef.current = next;
       setEntries(next);
