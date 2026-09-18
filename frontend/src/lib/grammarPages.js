@@ -23,7 +23,10 @@ export async function fetchGrammarPages(book, chapters) {
     let detail = "";
     try {
       detail = (await res.json()).error || "";
-    } catch (e) {}
+    } catch (e) {
+      // Error response wasn't JSON (e.g. a proxy/gateway error page) -
+      // fall back to the generic message below, nothing to recover here.
+    }
     throw new Error("grammar-pages request failed" + (detail ? ": " + detail : ""));
   }
 
