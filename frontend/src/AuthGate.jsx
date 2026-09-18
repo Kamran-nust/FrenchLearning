@@ -20,11 +20,19 @@ export default function AuthGate({ children }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [confirmSent, setConfirmSent] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordSaved, setNewPasswordSaved] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
+      // Fires when the session came from a password-recovery link - a
+      // session exists at this point, but the point of that link was to
+      // set a new password, not to silently drop them straight into the
+      // app with whatever password they had before (or none at all).
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -65,10 +73,63 @@ export default function AuthGate({ children }) {
     }
   }
 
+  async function submitNewPassword(e) {
+    e.preventDefault();
+    if (!newPassword) return;
+    setSubmitting(true);
+    setError("");
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setSubmitting(false);
+    if (error) {
+      setError(error.message);
+    } else {
+      setNewPasswordSaved(true);
+      setRecovering(false);
+    }
+  }
+
   if (session === undefined) {
     return (
       <div style={wrap}>
         <div style={{ color: COLORS.muted, fontSize: 14 }}>Loading…</div>
+      </div>
+    );
+  }
+
+  if (recovering) {
+    return (
+      <div style={wrap}>
+        <div style={card}>
+          <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 6, color: COLORS.text }}>
+            Set a new password
+          </div>
+          <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 20 }}>
+            {newPasswordSaved
+              ? "Password updated."
+              : "Choose a new password for " + (session?.user?.email || "your account") + "."}
+          </div>
+          {newPasswordSaved ? (
+            <button onClick={() => setRecovering(false)} style={button}>
+              Continue
+            </button>
+          ) : (
+            <form onSubmit={submitNewPassword}>
+              <input
+                type="password"
+                required
+                minLength={6}
+                placeholder="new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                style={input}
+              />
+              <button type="submit" disabled={submitting} style={button}>
+                {submitting ? "Saving…" : "Save password"}
+              </button>
+              {error && <div style={{ color: "#F87171", fontSize: 12, marginTop: 10 }}>{error}</div>}
+            </form>
+          )}
+        </div>
       </div>
     );
   }
