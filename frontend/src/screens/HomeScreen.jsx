@@ -1,6 +1,11 @@
-import { ArrowRight, Lock, Layers, Calendar } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowRight, Lock, Layers, Calendar, Check } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { SECTIONS } from "../shared/navigationConfig";
+import { DAYS } from "../data/ankiDays";
+import { loadFullyCompletedThrough } from "../lib/overallProgress";
+
+const TOTAL_DAYS = DAYS.length;
 
 function RibbonDivider() {
   return (
@@ -60,6 +65,18 @@ function CornerFlourish({ side }) {
 }
 
 export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDay }) {
+  const [completedThrough, setCompletedThrough] = useState(null); // null = loading or unavailable
+
+  useEffect(() => {
+    let cancelled = false;
+    loadFullyCompletedThrough(TOTAL_DAYS).then((n) => {
+      if (!cancelled) setCompletedThrough(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div style={{ background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" }} className="min-h-screen">
       <GlobalStyle />
@@ -84,6 +101,26 @@ export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDa
           <p className="text-sm mt-3" style={{ color: COLORS.muted }}>
             From absolute beginner to confident exam readiness
           </p>
+
+          {completedThrough !== null && (
+            <div className="flex flex-col items-center mt-5">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: COLORS.accentSoft }}>
+                <Check size={14} color={completedThrough > 0 ? COLORS.success : COLORS.muted} />
+                <span className="text-xs font-medium" style={{ color: completedThrough > 0 ? COLORS.text : COLORS.muted }}>
+                  {"Day " + completedThrough + " complete"}
+                </span>
+              </div>
+              <div className="w-full h-1 rounded-full overflow-hidden mt-2.5" style={{ background: COLORS.border, maxWidth: "200px" }}>
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: Math.round((completedThrough / TOTAL_DAYS) * 100) + "%", background: COLORS.accent }}
+                />
+              </div>
+              <div className="mt-1.5 text-xs" style={{ color: COLORS.muted }}>
+                {completedThrough} / {TOTAL_DAYS} days
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-center my-7">
