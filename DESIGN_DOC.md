@@ -516,6 +516,17 @@ available to everyone, with per-tier daily limits (below). Everything else is
 available to all tiers. When restricting a new feature: add it to `FEATURES`,
 wrap the UI in `<Gate>`, and add `requireTier` to any backend function it uses.
 
+**Admin page (super users only).** A "Admin: manage users" button on the
+home screen (`FEATURES.adminPanel = "super"`) opens `screens/AdminScreen.jsx`:
+every user with username, email, tier, join date, last sign-in and AI
+feedback used in the last 24h, plus search and a tier dropdown per person
+(free/premium/super). Your own row is locked, promoting someone to super asks
+for confirmation, and a refused change reverts with the reason shown. It is
+backed by `admin_list_users()` (migration `0005`) and `set_user_tier()`; both
+check for a super user *inside the database*, so hiding the button is not the
+only protection, and `set_user_tier` refuses to remove the last super user.
+Tier changes apply on the affected user's next page load.
+
 **AI writing-feedback limits (per tier, rolling 24 hours).** Free: 1,
 Premium: 5, Super: unlimited. Limits live in the `tier_limits` table
 (`0004_feedback_limits.sql`; NULL = unlimited), so they can be changed with

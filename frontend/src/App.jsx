@@ -8,6 +8,7 @@ import HomeScreen from "./screens/HomeScreen.jsx";
 import LevelsScreen from "./screens/LevelsScreen.jsx";
 import LevelDetailScreen from "./screens/LevelDetailScreen.jsx";
 import DayJumpScreen from "./screens/DayJumpScreen.jsx";
+import AdminScreen from "./screens/AdminScreen.jsx";
 
 export default function App() {
   const [screen, setScreen] = useState("home");
@@ -27,6 +28,7 @@ export default function App() {
         onSelectSection={(id) => openSection(id, "home", null)}
         onBrowseLevels={() => setScreen("levels")}
         onJumpToDay={() => setScreen("day-jump")}
+        onOpenAdmin={() => setScreen("admin")}
       />
     );
   }
@@ -57,6 +59,9 @@ export default function App() {
         onSelectSection={(id, day) => openSection(id, "day-jump", day)}
       />
     );
+  }
+  if (screen === "admin") {
+    return <AdminScreen onBack={() => setScreen("home")} />;
   }
   if (screen === "grammar") {
     return <GrammarModule onBack={() => setScreen(returnScreen)} startDay={jumpDay} />;

@@ -12,6 +12,7 @@ export const TIER_LABELS = { free: "Free", premium: "Premium", super: "Super" };
 // Function, stored data) also has to be enforced on the server.
 export const FEATURES = {
   grammarPdf: "premium", // grammar chapter-excerpt PDFs
+  adminPanel: "super", // user/tier management page
 };
 
 export function tierAtLeast(tier, minimum) {

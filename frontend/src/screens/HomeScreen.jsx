@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { ArrowRight, Lock, Layers, Calendar, Check } from "lucide-react";
+import { ArrowRight, Lock, Layers, Calendar, Check, Users } from "lucide-react";
+import Gate from "../Gate.jsx";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { SECTIONS } from "../shared/navigationConfig";
 import { DAYS } from "../data/ankiDays";
@@ -64,7 +65,7 @@ function CornerFlourish({ side }) {
   );
 }
 
-export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDay }) {
+export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDay, onOpenAdmin }) {
   const [completedThrough, setCompletedThrough] = useState(null); // null = loading or unavailable
 
   useEffect(() => {
@@ -223,6 +224,16 @@ export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDa
               </div>
             </button>
           </div>
+          <Gate feature="adminPanel">
+            <button
+              onClick={onOpenAdmin}
+              className="w-full mt-2.5 flex items-center justify-center gap-2 p-3 rounded-2xl text-sm font-medium"
+              style={{ background: COLORS.card, border: "1px dashed " + COLORS.border, color: COLORS.muted }}
+            >
+              <Users size={16} color={COLORS.accent} />
+              Admin: manage users
+            </button>
+          </Gate>
         </div>
 
         <div className="text-center text-xs mt-8" style={{ color: COLORS.muted }}>
