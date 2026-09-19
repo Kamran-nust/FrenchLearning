@@ -10,13 +10,18 @@ import DayPlanDownload from "../DayPlanDownload.jsx";
 
 const TOTAL_DAYS = DAYS.length;
 
-export default function DayJumpScreen({ onBack, onSelectSection }) {
-  const [dayInput, setDayInput] = useState("");
-  const [chosenDay, setChosenDay] = useState(null);
+// initialDay: the day picked earlier, so coming back from a section shows that day again.
+// onDayChosen: told whenever a day is picked, so the app can remember it.
+export default function DayJumpScreen({ onBack, onSelectSection, initialDay = null, onDayChosen = () => {} }) {
+  const [dayInput, setDayInput] = useState(initialDay ? String(initialDay) : "");
+  const [chosenDay, setChosenDay] = useState(initialDay);
 
   function go() {
     const n = parseInt(dayInput, 10);
-    if (n >= 1 && n <= TOTAL_DAYS) setChosenDay(n);
+    if (n >= 1 && n <= TOTAL_DAYS) {
+      setChosenDay(n);
+      onDayChosen(n);
+    }
   }
 
   const ankiDay = chosenDay ? DAYS[chosenDay - 1] : null;

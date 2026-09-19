@@ -15,6 +15,8 @@ export default function App() {
   const [returnScreen, setReturnScreen] = useState("home");
   const [selectedLevel, setSelectedLevel] = useState(null);
   const [jumpDay, setJumpDay] = useState(null);
+  // The day picked on the "Jump to a day" screen, kept so that coming back from a section shows that day again.
+  const [jumpChosenDay, setJumpChosenDay] = useState(null);
 
   function openSection(id, fromScreen, day) {
     setJumpDay(day || null);
@@ -54,7 +56,15 @@ export default function App() {
   }
   if (screen === "day-jump") {
     return (
-      <DayJumpScreen onBack={() => setScreen("home")} onSelectSection={(id, day) => openSection(id, "day-jump", day)} />
+      <DayJumpScreen
+        initialDay={jumpChosenDay}
+        onDayChosen={setJumpChosenDay}
+        onBack={() => {
+          setJumpChosenDay(null); // leaving for Home starts the next visit fresh
+          setScreen("home");
+        }}
+        onSelectSection={(id, day) => openSection(id, "day-jump", day)}
+      />
     );
   }
   if (screen === "admin") {
