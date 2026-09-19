@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.frenchnclc7.app.data.ApiException
 import com.frenchnclc7.app.data.AppRead
+import com.frenchnclc7.app.data.FeedbackOutcome
+import com.frenchnclc7.app.data.FeedbackQuota
 import com.frenchnclc7.app.data.LocalStore
 import com.frenchnclc7.app.data.PlanRepository
 import com.frenchnclc7.app.data.PlanSection
@@ -15,7 +17,11 @@ import com.frenchnclc7.app.data.Session
 import com.frenchnclc7.app.data.SupabaseApi
 import com.frenchnclc7.app.data.TOTAL_DAYS
 import com.frenchnclc7.app.data.Tier
+import com.frenchnclc7.app.data.WritingEntry
+import com.frenchnclc7.app.data.WritingLogic
 import com.frenchnclc7.app.ui.Themes
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +37,8 @@ sealed interface Screen {
     data class Day(val section: PlanSection, val day: Int) : Screen
     /** The day-by-day study screen with "Mark day complete" and streaks. */
     data object Study : Screen
+    /** The Writing section: editor, AI feedback, mark day complete. */
+    data object Writing : Screen
 }
 
 enum class StudyPhase { DAY, COMPLETE, FINISHED }
@@ -52,6 +60,30 @@ data class StudyState(
     val confirmingReset: Boolean = false,
 )
 
+enum class SaveState { IDLE, SAVING, SAVED }
+
+enum class FeedbackUi { IDLE, LOADING, BUSY, FAILED }
+
+data class WritingState(
+    val loading: Boolean = true,
+    val progress: SectionProgress = SectionProgress(),
+    /** What was written (and the AI's feedback) for each day. */
+    val entries: Map<Int, WritingEntry> = emptyMap(),
+    /** Saved progress or writing couldn't be read: saving is switched off so it can never be overwritten. */
+    val loadFailed: Boolean = false,
+    val saveFailed: Boolean = false,
+    val viewDay: Int = 1,
+    val phase: StudyPhase = StudyPhase.DAY,
+    val completion: CompletionInfo? = null,
+    val confirmingReset: Boolean = false,
+    val saveState: SaveState = SaveState.IDLE,
+    val feedback: FeedbackUi = FeedbackUi.IDLE,
+    /** Today's AI feedback allowance; null until loaded. */
+    val quota: FeedbackQuota? = null,
+    /** Goes up on every reset, so the text box starts empty again. */
+    val resetCount: Int = 0,
+)
+
 data class UiState(
     val screen: Screen = Screen.Loading,
     val session: Session? = null,
@@ -64,6 +96,7 @@ data class UiState(
     val authError: String? = null,
     val authNotice: String? = null,
     val study: StudyState? = null,
+    val writing: WritingState? = null,
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -197,7 +230,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Opens a section on a day. Grammar, Kwiziq, TV5MONDE and Writing use the study screen; Anki the read-only viewer. */
     fun open(section: PlanSection, day: Int? = null) {
         if (section == PlanSection.ANKI) {
-            _state.update { it.copy(screen = Screen.Day(section, day ?: 1), study = null) }
+            flushWriting()
+            _state.update { it.copy(screen = Screen.Day(section, day ?: 1), study = null, writing = null) }
+            return
+        }
+        if (section == PlanSection.WRITING) {
+            openWriting(day)
             return
         }
         val current = _state.value.study
@@ -213,8 +251,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Home. Also re-reads the overall progress so "Day N complete" reflects what was just done. */
     fun home() {
-        val hadStudy = _state.value.study != null
-        _state.update { it.copy(screen = Screen.Home, study = null) }
+        val hadStudy = _state.value.study != null || _state.value.writing != null
+        flushWriting()
+        _state.update { it.copy(screen = Screen.Home, study = null, writing = null) }
         if (hadStudy) refreshOverview()
     }
 
@@ -301,5 +340,182 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val fresh = SectionProgress()
         editStudy { it.copy(progress = fresh, confirmingReset = false, viewDay = 1, phase = StudyPhase.DAY, completion = null) }
         persist(study.section, fresh)
+    }
+
+    // ---- Writing ------------------------------------------------------------------------------
+
+    private var writingSaveJob: Job? = null
+    private var writingLoadFailed = false
+
+    private fun updateWriting(change: (WritingState) -> WritingState) {
+        _state.update { ui -> ui.writing?.let { ui.copy(writing = change(it)) } ?: ui }
+    }
+
+    private fun writingTask(day: Int): String = plan.days(PlanSection.WRITING).first { it.day == day }.text
+
+    private fun openWriting(startDay: Int?) {
+        val alreadyOpen = _state.value.writing
+        if (alreadyOpen != null && !alreadyOpen.loading) {
+            // Switching days inside Writing: keep what is loaded.
+            switchWritingDay((startDay ?: alreadyOpen.viewDay).coerceIn(1, TOTAL_DAYS), keepPhase = false)
+            _state.update { it.copy(screen = Screen.Writing) }
+            return
+        }
+        writingLoadFailed = false
+        _state.update { it.copy(screen = Screen.Writing, study = null, writing = WritingState()) }
+        viewModelScope.launch { // the AI allowance loads alongside, without holding up the screen
+            val quota = try { authed { api.feedbackQuota(it) } } catch (e: ApiException) { null }
+            updateWriting { it.copy(quota = quota) }
+        }
+        viewModelScope.launch {
+            try {
+                val (readProgress, readEntries) = authed { s ->
+                    Pair(api.readAppValue(s, PlanSection.WRITING.storageKey), api.readAppValue(s, "writing-entries"))
+                }
+                var failed = false
+                val progress = when (readProgress) {
+                    AppRead.Empty -> SectionProgress()
+                    AppRead.Failed -> { failed = true; SectionProgress() }
+                    is AppRead.Found -> ProgressLogic.decode(readProgress.text) ?: run { failed = true; SectionProgress() }
+                }
+                val entries = when (readEntries) {
+                    AppRead.Empty -> emptyMap()
+                    AppRead.Failed -> { failed = true; emptyMap() }
+                    is AppRead.Found -> WritingLogic.decodeEntries(readEntries.text) ?: run { failed = true; emptyMap() }
+                }
+                writingLoadFailed = failed
+                updateWriting {
+                    it.copy(
+                        loading = false, progress = progress, entries = entries, loadFailed = failed,
+                        viewDay = (startDay ?: progress.current_day).coerceIn(1, TOTAL_DAYS),
+                    )
+                }
+            } catch (e: ApiException) {
+                // Couldn't read: never treat that as "nothing saved" (saving stays off).
+                writingLoadFailed = true
+                updateWriting { it.copy(loading = false, loadFailed = true, viewDay = (startDay ?: 1).coerceIn(1, TOTAL_DAYS)) }
+            }
+        }
+    }
+
+    /** Saves one Writing value unless the load failed (in which case what is saved must not be overwritten). */
+    private fun persistWriting(key: String, jsonText: String) {
+        if (writingLoadFailed) return
+        viewModelScope.launch {
+            try {
+                authed { api.saveAppState(it, key, jsonText) }
+                updateWriting { it.copy(saveFailed = false) }
+            } catch (e: ApiException) {
+                updateWriting { it.copy(saveFailed = true) }
+            }
+        }
+    }
+
+    /** If a typing-pause save is waiting, do it now (before switching day, completing, or leaving). */
+    private fun flushWriting() {
+        val job = writingSaveJob
+        if (job != null && job.isActive) {
+            job.cancel()
+            _state.value.writing?.let { persistWriting("writing-entries", WritingLogic.encodeEntries(it.entries)) }
+            updateWriting { it.copy(saveState = SaveState.SAVED) }
+        }
+        writingSaveJob = null
+    }
+
+    /** Called on every change to the text box. The text is saved a second after typing stops. */
+    fun writingDraftChanged(text: String) {
+        val w = _state.value.writing ?: return
+        if (w.loading) return
+        val day = w.viewDay
+        val entries = w.entries + (day to (w.entries[day] ?: WritingEntry()).copy(text = text))
+        updateWriting { it.copy(entries = entries, saveState = SaveState.SAVING) }
+        writingSaveJob?.cancel()
+        writingSaveJob = viewModelScope.launch {
+            delay(1000)
+            _state.value.writing?.let { persistWriting("writing-entries", WritingLogic.encodeEntries(it.entries)) }
+            updateWriting { it.copy(saveState = SaveState.SAVED) }
+            writingSaveJob = null
+        }
+    }
+
+    private fun switchWritingDay(day: Int, keepPhase: Boolean) {
+        flushWriting()
+        updateWriting {
+            it.copy(viewDay = day, saveState = SaveState.IDLE, feedback = FeedbackUi.IDLE, phase = if (keepPhase) it.phase else StudyPhase.DAY)
+        }
+    }
+
+    fun writingMove(delta: Int) {
+        val w = _state.value.writing ?: return
+        val next = (w.viewDay + delta).coerceIn(1, TOTAL_DAYS)
+        if (next != w.viewDay) switchWritingDay(next, keepPhase = true)
+    }
+
+    /** Asks the AI for feedback on today's draft. Only a successful reply uses up the allowance. */
+    fun getWritingFeedback() {
+        val w = _state.value.writing ?: return
+        val day = w.viewDay
+        val draft = w.entries[day]?.text ?: return
+        if (draft.isBlank() || w.feedback == FeedbackUi.LOADING || w.quota?.limitReached() == true) return
+        updateWriting { it.copy(feedback = FeedbackUi.LOADING) }
+        viewModelScope.launch {
+            val outcome = try {
+                authed { api.writingFeedback(it, writingTask(day), draft) }
+            } catch (e: ApiException) {
+                FeedbackOutcome.Failed
+            }
+            when (outcome) {
+                is FeedbackOutcome.Success -> {
+                    var saved = ""
+                    updateWriting { cur ->
+                        val entries = cur.entries + (day to (cur.entries[day] ?: WritingEntry()).copy(text = draft, feedback = outcome.text))
+                        saved = WritingLogic.encodeEntries(entries)
+                        cur.copy(entries = entries, quota = outcome.quota ?: cur.quota, feedback = FeedbackUi.IDLE)
+                    }
+                    if (saved.isNotEmpty()) persistWriting("writing-entries", saved)
+                }
+                // The limit line under the button explains it; no separate error is needed.
+                is FeedbackOutcome.LimitReached -> updateWriting { it.copy(quota = outcome.quota ?: it.quota, feedback = FeedbackUi.IDLE) }
+                FeedbackOutcome.Busy -> updateWriting { it.copy(feedback = FeedbackUi.BUSY) }
+                FeedbackOutcome.Failed -> updateWriting { it.copy(feedback = FeedbackUi.FAILED) }
+            }
+        }
+    }
+
+    fun completeWritingDay() {
+        val w = _state.value.writing ?: return
+        val pending = w.viewDay == w.progress.current_day && w.progress.current_day <= TOTAL_DAYS
+        if (w.loading || !pending) return
+        flushWriting()
+        val done = ProgressLogic.completeDay(w.progress, w.viewDay)
+        val next = done.progress
+        updateWriting {
+            it.copy(
+                progress = next,
+                completion = CompletionInfo(w.viewDay, TOTAL_DAYS - next.completed_days.size, done.streak),
+                phase = if (next.current_day > TOTAL_DAYS) StudyPhase.FINISHED else StudyPhase.COMPLETE,
+            )
+        }
+        persistWriting(PlanSection.WRITING.storageKey, ProgressLogic.encode(next))
+    }
+
+    fun continueWriting() {
+        val w = _state.value.writing ?: return
+        if (w.progress.current_day > TOTAL_DAYS) updateWriting { it.copy(phase = StudyPhase.FINISHED) }
+        else switchWritingDay(w.progress.current_day, keepPhase = false)
+    }
+
+    fun askWritingReset(confirming: Boolean) = updateWriting { it.copy(confirmingReset = confirming) }
+
+    fun doWritingReset() {
+        _state.value.writing ?: return
+        flushWriting()
+        val fresh = SectionProgress()
+        updateWriting {
+            it.copy(progress = fresh, entries = emptyMap(), confirmingReset = false, viewDay = 1, phase = StudyPhase.DAY,
+                completion = null, saveState = SaveState.IDLE, feedback = FeedbackUi.IDLE, resetCount = it.resetCount + 1)
+        }
+        persistWriting(PlanSection.WRITING.storageKey, ProgressLogic.encode(fresh))
+        persistWriting("writing-entries", WritingLogic.encodeEntries(emptyMap()))
     }
 }

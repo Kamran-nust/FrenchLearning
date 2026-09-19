@@ -20,6 +20,7 @@ import com.frenchnclc7.app.ui.DayScreen
 import com.frenchnclc7.app.ui.HomeScreen
 import com.frenchnclc7.app.ui.LocalColors
 import com.frenchnclc7.app.ui.StudyScreen
+import com.frenchnclc7.app.ui.WritingScreen
 import com.frenchnclc7.app.ui.Themes
 
 class MainActivity : ComponentActivity() {
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Auth -> AuthScreen(state, vm)
                         Screen.Home -> HomeScreen(state, vm)
                         Screen.Study -> state.study?.let { StudyScreen(it, vm) }
+                        Screen.Writing -> state.writing?.let { WritingScreen(it, vm) }
                         is Screen.Day -> {
                             BackHandler { vm.home() }
                             DayScreen(screen, vm)

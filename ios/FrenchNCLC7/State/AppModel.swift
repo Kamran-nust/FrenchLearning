@@ -10,6 +10,8 @@ enum Screen: Equatable {
     case day(PlanSection, Int)
     /// The day-by-day study screen with "Mark day complete" and streaks.
     case study
+    /// The Writing section: editor, AI feedback, mark day complete.
+    case writing
 }
 
 enum StudyPhase: Equatable {
@@ -37,6 +39,34 @@ struct StudyState: Equatable {
     var confirmingReset = false
 }
 
+enum SaveState: Equatable {
+    case idle, saving, saved
+}
+
+enum FeedbackUI: Equatable {
+    case idle, loading, busy, failed
+}
+
+struct WritingState: Equatable {
+    var loading = true
+    var progress = SectionProgress()
+    /// What was written (and the AI's feedback) for each day.
+    var entries: [Int: WritingEntry] = [:]
+    /// Saved progress or writing couldn't be read: saving is switched off so it can never be overwritten.
+    var loadFailed = false
+    var saveFailed = false
+    var viewDay = 1
+    var phase: StudyPhase = .day
+    var completion: CompletionInfo?
+    var confirmingReset = false
+    var saveState: SaveState = .idle
+    var feedback: FeedbackUI = .idle
+    /// Today's AI feedback allowance; nil until loaded.
+    var quota: FeedbackQuota?
+    /// Goes up on every reset, so the text box starts empty again.
+    var resetCount = 0
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var screen: Screen = .loading
@@ -50,10 +80,14 @@ final class AppModel: ObservableObject {
     @Published var authError: String?
     @Published var authNotice: String?
     @Published var study: StudyState?
+    @Published var writing: WritingState?
 
     let plan = PlanRepository()
     private let api = SupabaseAPI()
     private let store = LocalStore()
+    private var writingSaveTask: Task<Void, Never>?
+    private var writingSavePending = false
+    private var writingLoadFailed = false
 
     var colors: AppColors { Themes.get(themeId) }
 
@@ -194,6 +228,7 @@ final class AppModel: ObservableObject {
         tier = .free
         completedThrough = nil
         study = nil
+        writing = nil
         authError = nil
         authNotice = nil
         screen = .auth
@@ -209,8 +244,14 @@ final class AppModel: ObservableObject {
     /// Opens a section on a day. Grammar, Kwiziq, TV5MONDE and Writing use the study screen; Anki the read-only viewer.
     func open(_ section: PlanSection, day: Int? = nil) {
         if section == .anki {
+            flushWriting()
             study = nil
+            writing = nil
             screen = .day(section, day ?? 1)
+            return
+        }
+        if section == .writing {
+            openWriting(startDay: day)
             return
         }
         if var current = study, current.section == section, !current.loading {
@@ -226,8 +267,10 @@ final class AppModel: ObservableObject {
 
     /// Home. Also re-reads the overall progress so "Day N complete" reflects what was just done.
     func goHome() {
-        let hadStudy = study != nil
+        let hadStudy = study != nil || writing != nil
+        flushWriting()
         study = nil
+        writing = nil
         screen = .home
         if hadStudy { refreshOverview() }
     }
@@ -337,5 +380,229 @@ final class AppModel: ObservableObject {
         s.completion = nil
         study = s
         persist(s.section, fresh)
+    }
+
+    // MARK: Writing
+
+    private func updateWriting(_ change: (inout WritingState) -> Void) {
+        guard var w = writing else { return }
+        change(&w)
+        writing = w
+    }
+
+    private func writingTask(_ day: Int) -> String {
+        plan.days(.writing).first { $0.day == day }?.text ?? ""
+    }
+
+    private func openWriting(startDay: Int?) {
+        if var current = writing, !current.loading {
+            // Switching days inside Writing: keep what is loaded.
+            flushWriting()
+            current = writing ?? current
+            current.viewDay = clampDay(startDay ?? current.viewDay)
+            current.phase = .day
+            current.saveState = .idle
+            current.feedback = .idle
+            writing = current
+            screen = .writing
+            return
+        }
+        writingLoadFailed = false
+        study = nil
+        writing = WritingState()
+        screen = .writing
+        Task { [self] in // the AI allowance loads alongside, without holding up the screen
+            let quota = try? await authed { try await self.api.feedbackQuota($0) }
+            updateWriting { $0.quota = quota ?? nil }
+        }
+        Task { [self] in
+            do {
+                let result = try await authed { s in
+                    (try await self.api.readAppValue(s, key: PlanSection.writing.storageKey),
+                     try await self.api.readAppValue(s, key: "writing-entries"))
+                }
+                var failed = false
+                var progress = SectionProgress()
+                var entries: [Int: WritingEntry] = [:]
+                switch result.0 {
+                case .empty: break
+                case .failed: failed = true
+                case .found(let text):
+                    if let decoded = StudyLogic.decode(text) { progress = decoded } else { failed = true }
+                }
+                switch result.1 {
+                case .empty: break
+                case .failed: failed = true
+                case .found(let text):
+                    if let decoded = WritingLogic.decodeEntries(text) { entries = decoded } else { failed = true }
+                }
+                writingLoadFailed = failed
+                let start = clampDay(startDay ?? progress.current_day)
+                updateWriting {
+                    $0.loading = false
+                    $0.progress = progress
+                    $0.entries = entries
+                    $0.loadFailed = failed
+                    $0.viewDay = start
+                }
+            } catch {
+                // Couldn't read: never treat that as "nothing saved" (saving stays off).
+                writingLoadFailed = true
+                let start = clampDay(startDay ?? 1)
+                updateWriting {
+                    $0.loading = false
+                    $0.loadFailed = true
+                    $0.viewDay = start
+                }
+            }
+        }
+    }
+
+    /// Saves one Writing value unless the load failed (in which case what is saved must not be overwritten).
+    private func persistWriting(_ key: String, _ jsonText: String) {
+        if writingLoadFailed { return }
+        Task { [self] in
+            do {
+                try await authed { try await self.api.saveAppState($0, key: key, jsonText: jsonText) }
+                updateWriting { $0.saveFailed = false }
+            } catch {
+                updateWriting { $0.saveFailed = true }
+            }
+        }
+    }
+
+    /// If a typing-pause save is waiting, do it now (before switching day, completing, or leaving).
+    private func flushWriting() {
+        if writingSavePending {
+            writingSaveTask?.cancel()
+            writingSavePending = false
+            if let w = writing { persistWriting("writing-entries", WritingLogic.encodeEntries(w.entries)) }
+            updateWriting { $0.saveState = .saved }
+        }
+        writingSaveTask = nil
+    }
+
+    /// Called on every change to the text box. The text is saved a second after typing stops.
+    func writingDraftChanged(_ text: String) {
+        guard var w = writing, !w.loading else { return }
+        let day = w.viewDay
+        w.entries[day] = WritingEntry(text: text, feedback: w.entries[day]?.feedback)
+        w.saveState = .saving
+        writing = w
+        writingSaveTask?.cancel()
+        writingSavePending = true
+        writingSaveTask = Task { [self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            if Task.isCancelled { return }
+            if let current = writing { persistWriting("writing-entries", WritingLogic.encodeEntries(current.entries)) }
+            writingSavePending = false
+            updateWriting { $0.saveState = .saved }
+        }
+    }
+
+    func writingMove(_ delta: Int) {
+        guard let w = writing else { return }
+        let next = clampDay(w.viewDay + delta)
+        if next == w.viewDay { return }
+        flushWriting()
+        updateWriting {
+            $0.viewDay = next
+            $0.saveState = .idle
+            $0.feedback = .idle
+        }
+    }
+
+    /// Asks the AI for feedback on today's draft. Only a successful reply uses up the allowance.
+    func getWritingFeedback() {
+        guard let w = writing else { return }
+        let day = w.viewDay
+        guard let draft = w.entries[day]?.text,
+              !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              w.feedback != .loading,
+              w.quota?.limitReached() != true else { return }
+        updateWriting { $0.feedback = .loading }
+        let task = writingTask(day)
+        Task { [self] in
+            let outcome: FeedbackOutcome
+            do {
+                outcome = try await authed { try await self.api.writingFeedback($0, task: task, draft: draft) }
+            } catch {
+                outcome = .failed
+            }
+            switch outcome {
+            case .success(let text, let quota):
+                var saved = ""
+                updateWriting {
+                    $0.entries[day] = WritingEntry(text: draft, feedback: text)
+                    if let quota { $0.quota = quota }
+                    $0.feedback = .idle
+                    saved = WritingLogic.encodeEntries($0.entries)
+                }
+                if !saved.isEmpty { persistWriting("writing-entries", saved) }
+            case .limitReached(let quota):
+                // The limit line under the button explains it; no separate error is needed.
+                updateWriting {
+                    if let quota { $0.quota = quota }
+                    $0.feedback = .idle
+                }
+            case .busy:
+                updateWriting { $0.feedback = .busy }
+            case .failed:
+                updateWriting { $0.feedback = .failed }
+            }
+        }
+    }
+
+    func completeWritingDay() {
+        guard let w = writing else { return }
+        let pending = w.viewDay == w.progress.current_day && w.progress.current_day <= totalDays
+        if w.loading || !pending { return }
+        flushWriting()
+        let done = StudyLogic.completeDay(w.progress, day: w.viewDay)
+        let next = done.progress
+        updateWriting {
+            $0.progress = next
+            $0.completion = CompletionInfo(day: w.viewDay, remaining: totalDays - next.completed_days.count, streak: done.streak)
+            $0.phase = next.current_day > totalDays ? .finished : .complete
+        }
+        persistWriting(PlanSection.writing.storageKey, StudyLogic.encode(next))
+    }
+
+    func continueWriting() {
+        guard let w = writing else { return }
+        if w.progress.current_day > totalDays {
+            updateWriting { $0.phase = .finished }
+        } else {
+            flushWriting()
+            updateWriting {
+                $0.viewDay = w.progress.current_day
+                $0.phase = .day
+                $0.saveState = .idle
+                $0.feedback = .idle
+            }
+        }
+    }
+
+    func askWritingReset(_ confirming: Bool) {
+        updateWriting { $0.confirmingReset = confirming }
+    }
+
+    func doWritingReset() {
+        guard writing != nil else { return }
+        flushWriting()
+        let fresh = SectionProgress()
+        updateWriting {
+            $0.progress = fresh
+            $0.entries = [:]
+            $0.confirmingReset = false
+            $0.viewDay = 1
+            $0.phase = .day
+            $0.completion = nil
+            $0.saveState = .idle
+            $0.feedback = .idle
+            $0.resetCount += 1
+        }
+        persistWriting(PlanSection.writing.storageKey, StudyLogic.encode(fresh))
+        persistWriting("writing-entries", WritingLogic.encodeEntries([:]))
     }
 }

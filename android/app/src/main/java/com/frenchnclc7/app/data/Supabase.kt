@@ -212,4 +212,25 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
         if (reply.status == 401) throw ApiException("Session expired.", 401)
         if (reply.status !in 200..299) throw ApiException(message(reply, "Couldn't save."), reply.status)
     }
+
+    /** Where the person stands with today's AI feedback allowance; null if it can't be read. */
+    suspend fun feedbackQuota(session: Session): FeedbackQuota? {
+        val reply = call("POST", "/rest/v1/rpc/feedback_quota", session.accessToken, buildJsonObject { })
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) return null
+        return FeedbackParser.quota(parse(reply.body))
+    }
+
+    /** Asks the AI for feedback on a draft (the same writing-feedback function the web app uses). */
+    suspend fun writingFeedback(session: Session, task: String, draft: String): FeedbackOutcome {
+        val reply = try {
+            call("POST", "/functions/v1/writing-feedback", session.accessToken, buildJsonObject {
+                put("task", task); put("draft", draft)
+            })
+        } catch (e: ApiException) {
+            return FeedbackOutcome.Failed
+        }
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        return FeedbackParser.outcome(reply.status, reply.body)
+    }
 }

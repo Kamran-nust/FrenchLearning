@@ -213,4 +213,20 @@ struct SupabaseAPI {
             throw APIError(message(reply.data, fallback: "Couldn't save."), status: reply.status)
         }
     }
+
+    /// Where the person stands with today's AI feedback allowance; nil if it can't be read.
+    func feedbackQuota(_ session: Session) async throws -> FeedbackQuota? {
+        guard let reply = try? await call("POST", "/rest/v1/rpc/feedback_quota", token: session.accessToken, body: [:]) else { return nil }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else { return nil }
+        return FeedbackParser.quota(try? JSONSerialization.jsonObject(with: reply.data))
+    }
+
+    /// Asks the AI for feedback on a draft (the same writing-feedback function the web app uses).
+    func writingFeedback(_ session: Session, task: String, draft: String) async throws -> FeedbackOutcome {
+        guard let reply = try? await call("POST", "/functions/v1/writing-feedback", token: session.accessToken,
+                                          body: ["task": task, "draft": draft]) else { return .failed }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        return FeedbackParser.outcome(status: reply.status, body: reply.data)
+    }
 }
