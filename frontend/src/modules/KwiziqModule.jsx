@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Search, ExternalLink } from "lucide-react";
+import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Search, ExternalLink, BookOpen } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { todayKey, waitForStorage, diagnoseStorage } from "../shared/storage";
 import { splitLessonChips } from "../shared/textHelpers";
+import { useLessonLinks } from "../lib/lessonLinks";
 import { KWIZIQ_DAYS } from "../data/kwiziqDays";
 
 const KWIZIQ_TOTAL = KWIZIQ_DAYS.length;
@@ -27,6 +28,7 @@ export default function KwiziqModule({ onBack, startDay }) {
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [completionInfo, setCompletionInfo] = useState(null);
   const [viewDay, setViewDay] = useState(1);
+  const lessonLinks = useLessonLinks("kwiziq");
 
   useEffect(() => {
     let cancelled = false;
@@ -284,13 +286,13 @@ export default function KwiziqModule({ onBack, startDay }) {
                 {chips.map((chip, i) => (
                   <a
                     key={i}
-                    href={buildGoogleSearchUrl(chip)}
+                    href={lessonLinks.get(chip) || buildGoogleSearchUrl(chip)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
                     style={{ background: COLORS.accentSoft, color: COLORS.link }}
                   >
-                    <Search size={12} className="shrink-0" />
+                    {lessonLinks.has(chip) ? <BookOpen size={12} className="shrink-0" /> : <Search size={12} className="shrink-0" />}
                     <span className="flex-1 truncate">{chip}</span>
                     <ExternalLink size={12} className="shrink-0" />
                   </a>

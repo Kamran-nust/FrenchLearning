@@ -3,6 +3,7 @@ import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Tv, ExternalLink } 
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { todayKey, waitForStorage, diagnoseStorage } from "../shared/storage";
 import { splitLessonChips } from "../shared/textHelpers";
+import { useLessonLinks } from "../lib/lessonLinks";
 import { TV5_DAYS } from "../data/tv5Days";
 
 const TV5_TOTAL = TV5_DAYS.length;
@@ -27,6 +28,7 @@ export default function Tv5Module({ onBack, startDay }) {
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [completionInfo, setCompletionInfo] = useState(null);
   const [viewDay, setViewDay] = useState(1);
+  const lessonLinks = useLessonLinks("tv5");
 
   useEffect(() => {
     let cancelled = false;
@@ -293,7 +295,7 @@ export default function Tv5Module({ onBack, startDay }) {
                 {chips.map((chip, i) => (
                   <a
                     key={i}
-                    href={buildTv5SearchUrl(chip)}
+                    href={lessonLinks.get(chip) || buildTv5SearchUrl(chip)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"

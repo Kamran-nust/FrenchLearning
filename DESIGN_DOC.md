@@ -527,6 +527,25 @@ check for a super user *inside the database*, so hiding the button is not the
 only protection, and `set_user_tier` refuses to remove the last super user.
 Tier changes apply on the affected user's next page load.
 
+**Direct lesson links for Kwiziq / TV5 (premium and super).** Free users keep
+the built-in Google-search links. For premium and super
+(`FEATURES.directLessonLinks`), a chip that has a row in the `lesson_links`
+table (migration `0006`, keyed by `(module, chip)` = the exact chip text shown)
+opens the real lesson page in a new tab instead; chips with no row fall back to
+the Google search, so nothing breaks while links are added gradually. The table
+is readable only by premium/super (and only `approved` rows) and writable only
+by super, enforced by row-level security - so the links are genuinely
+premium-only, and editing them needs no code change or deploy. Kwiziq links were
+matched from the plan text against Kwiziq's public lesson list (541 lessons):
+68 confident matches are live (`approved = true`, covering 49 of 301 days, all
+verified to return HTTP 200), and 35 candidates await review
+(`supabase/seed/kwiziq_links_review.md`; approve with an SQL `update`). About
+two thirds of Kwiziq chips are study instructions ("Mixed kwiz", "Take a
+diagnostic", ...) rather than lessons, so they have no page to link to. TV5
+uses the same table (`module = 'tv5'`) and is wired up, but has no rows yet;
+73 of its 301 days are generic study instructions with no lesson page. Seed
+data: `supabase/seed/kwiziq_links.sql` (re-runnable upsert).
+
 **AI writing-feedback limits (per tier, rolling 24 hours).** Free: 1,
 Premium: 5, Super: unlimited. Limits live in the `tier_limits` table
 (`0004_feedback_limits.sql`; NULL = unlimited), so they can be changed with
