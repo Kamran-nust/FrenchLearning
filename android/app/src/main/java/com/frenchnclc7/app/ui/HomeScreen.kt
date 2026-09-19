@@ -135,7 +135,7 @@ fun HomeScreen(state: UiState, vm: AppViewModel) {
                     modifier = Modifier.weight(1f),
                 )
                 Button(
-                    onClick = { jump.toIntOrNull()?.takeIf { it in 1..TOTAL_DAYS }?.let { vm.open(PlanSection.ANKI, it) } },
+                    onClick = { jump.toIntOrNull()?.takeIf { it in 1..TOTAL_DAYS }?.let { vm.browseDay(it) } },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.onAccent),
                     modifier = Modifier.height(56.dp),

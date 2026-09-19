@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.frenchnclc7.app.ui.AnkiScreen
 import com.frenchnclc7.app.ui.AuthScreen
 import com.frenchnclc7.app.ui.DayScreen
 import com.frenchnclc7.app.ui.HomeScreen
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Home -> HomeScreen(state, vm)
                         Screen.Study -> state.study?.let { StudyScreen(it, vm) }
                         Screen.Writing -> state.writing?.let { WritingScreen(it, vm) }
+                        Screen.Anki -> state.anki?.let { AnkiScreen(it, vm) }
                         is Screen.Day -> {
                             BackHandler { vm.home() }
                             DayScreen(screen, vm)

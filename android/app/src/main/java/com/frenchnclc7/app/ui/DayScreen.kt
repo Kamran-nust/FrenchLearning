@@ -53,7 +53,7 @@ fun DayScreen(screen: Screen.Day, vm: AppViewModel) {
                     color = if (selected) c.onAccent else c.link,
                     modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(50))
                         .background(if (selected) c.accent else c.accentSoft)
-                        .clickable { vm.open(s, day.day) }.padding(horizontal = 10.dp, vertical = 6.dp),
+                        .clickable { if (s == PlanSection.ANKI) vm.browseDay(day.day) else vm.open(s, day.day) }.padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
         }
@@ -85,6 +85,14 @@ fun DayScreen(screen: Screen.Day, vm: AppViewModel) {
                 Text(day.text, color = c.text, fontSize = 15.sp, lineHeight = 22.sp)
             }
         }
+        if (screen.section == PlanSection.ANKI) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Practice this day's flashcards", color = c.onAccent, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.accent)
+                    .clickable { vm.open(PlanSection.ANKI, day.day) }.padding(vertical = 14.dp),
+            )
+        }
         Spacer(Modifier.height(20.dp))
 
         Row(Modifier.fillMaxWidth()) {
@@ -92,11 +100,11 @@ fun DayScreen(screen: Screen.Day, vm: AppViewModel) {
             val next = day.day < TOTAL_DAYS
             Text(
                 "‹ Previous", color = if (prev) c.link else c.muted, fontSize = 14.sp,
-                modifier = Modifier.weight(1f).clickable(enabled = prev) { vm.open(screen.section, day.day - 1) }.padding(8.dp),
+                modifier = Modifier.weight(1f).clickable(enabled = prev) { vm.browseDay(day.day - 1) }.padding(8.dp),
             )
             Text(
                 "Next ›", color = if (next) c.link else c.muted, fontSize = 14.sp, textAlign = TextAlign.End,
-                modifier = Modifier.weight(1f).clickable(enabled = next) { vm.open(screen.section, day.day + 1) }.padding(8.dp),
+                modifier = Modifier.weight(1f).clickable(enabled = next) { vm.browseDay(day.day + 1) }.padding(8.dp),
             )
         }
     }

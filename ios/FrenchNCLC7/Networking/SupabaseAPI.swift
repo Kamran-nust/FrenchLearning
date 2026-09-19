@@ -229,4 +229,14 @@ struct SupabaseAPI {
         if reply.status == 401 { throw APIError("Session expired.", status: 401) }
         return FeedbackParser.outcome(status: reply.status, body: reply.data)
     }
+
+    /// French pronunciation for a word or phrase (an MP3), from the same text-to-speech function the web app uses. nil if unavailable.
+    func textToSpeech(_ session: Session, text: String) async throws -> Data? {
+        guard let reply = try? await call("POST", "/functions/v1/text-to-speech", token: session.accessToken, body: ["text": text]) else { return nil }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status),
+              let obj = (try? JSONSerialization.jsonObject(with: reply.data)) as? [String: Any],
+              let audio = obj["audioContent"] as? String else { return nil }
+        return Data(base64Encoded: audio)
+    }
 }

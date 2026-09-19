@@ -12,6 +12,8 @@ enum Screen: Equatable {
     case study
     /// The Writing section: editor, AI feedback, mark day complete.
     case writing
+    /// The Anki flashcards.
+    case anki
 }
 
 enum StudyPhase: Equatable {
@@ -67,6 +69,26 @@ struct WritingState: Equatable {
     var resetCount = 0
 }
 
+struct AnkiState: Equatable {
+    var loading = true
+    var progress = SectionProgress()
+    /// Cards marked "hard" (they come up more often in review), in the order they were marked.
+    var hard: [String] = []
+    var stats: [String: CardStat] = [:]
+    var session: AnkiSession?
+    var index = 0
+    var revealed = false
+    /// .day = a session is running.
+    var phase: StudyPhase = .day
+    var completion: CompletionInfo?
+    /// A bonus round for a chosen day: nothing about progress, streak or stats changes.
+    var practice = false
+    /// Saved progress couldn't be read: saving is switched off so it can never be overwritten.
+    var loadFailed = false
+    var saveFailed = false
+    var confirmingReset = false
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var screen: Screen = .loading
@@ -81,6 +103,7 @@ final class AppModel: ObservableObject {
     @Published var authNotice: String?
     @Published var study: StudyState?
     @Published var writing: WritingState?
+    @Published var anki: AnkiState?
 
     let plan = PlanRepository()
     private let api = SupabaseAPI()
@@ -88,6 +111,9 @@ final class AppModel: ObservableObject {
     private var writingSaveTask: Task<Void, Never>?
     private var writingSavePending = false
     private var writingLoadFailed = false
+    private var ankiLoadFailed = false
+    private let speech = SpeechPlayer()
+    private var speakTask: Task<Void, Never>?
 
     var colors: AppColors { Themes.get(themeId) }
 
@@ -222,6 +248,7 @@ final class AppModel: ObservableObject {
     }
 
     func signOut() {
+        stopSpeech()
         store.clearSession()
         session = nil
         username = nil
@@ -229,6 +256,7 @@ final class AppModel: ObservableObject {
         completedThrough = nil
         study = nil
         writing = nil
+        anki = nil
         authError = nil
         authNotice = nil
         screen = .auth
@@ -245,9 +273,7 @@ final class AppModel: ObservableObject {
     func open(_ section: PlanSection, day: Int? = nil) {
         if section == .anki {
             flushWriting()
-            study = nil
-            writing = nil
-            screen = .day(section, day ?? 1)
+            openAnki(practiceDay: day)
             return
         }
         if section == .writing {
@@ -266,11 +292,23 @@ final class AppModel: ObservableObject {
     }
 
     /// Home. Also re-reads the overall progress so "Day N complete" reflects what was just done.
-    func goHome() {
-        let hadStudy = study != nil || writing != nil
+    /// The read-only day viewer (Home's "Jump to a day").
+    func browseDay(_ day: Int) {
         flushWriting()
+        stopSpeech()
         study = nil
         writing = nil
+        anki = nil
+        screen = .day(.anki, clampDay(day))
+    }
+
+    func goHome() {
+        let hadStudy = study != nil || writing != nil || anki != nil
+        flushWriting()
+        stopSpeech()
+        study = nil
+        writing = nil
+        anki = nil
         screen = .home
         if hadStudy { refreshOverview() }
     }
@@ -604,5 +642,236 @@ final class AppModel: ObservableObject {
         }
         persistWriting(PlanSection.writing.storageKey, StudyLogic.encode(fresh))
         persistWriting("writing-entries", WritingLogic.encodeEntries([:]))
+    }
+
+    // MARK: Anki flashcards
+
+    private func updateAnki(_ change: (inout AnkiState) -> Void) {
+        guard var a = anki else { return }
+        change(&a)
+        anki = a
+    }
+
+    private func buildAnkiSession(day: Int, progress: SectionProgress, hard: [String]) -> AnkiSession? {
+        AnkiLogic.buildSession(days: plan.days(.anki), currentDay: day, completedCount: progress.completed_days.count, hard: Set(hard))
+    }
+
+    /// Opens the flashcards. With no `practiceDay` it is today's real session; with one it is a bonus
+    /// practice round for that day (no progress, streak or stats change).
+    private func openAnki(practiceDay: Int?) {
+        ankiLoadFailed = false
+        stopSpeech()
+        study = nil
+        writing = nil
+        anki = AnkiState()
+        screen = .anki
+        Task { [self] in
+            do {
+                let reads = try await authed { s in
+                    (try await self.api.readAppValue(s, key: "progress"),
+                     try await self.api.readAppValue(s, key: "hard-words"),
+                     try await self.api.readAppValue(s, key: "card-stats"))
+                }
+                var failed = false
+                var progress = SectionProgress()
+                var hard: [String] = []
+                var stats: [String: CardStat] = [:]
+                switch reads.0 {
+                case .empty: break
+                case .failed: failed = true
+                case .found(let text):
+                    if let decoded = StudyLogic.decode(text) { progress = decoded } else { failed = true }
+                }
+                switch reads.1 {
+                case .empty: break
+                case .failed: failed = true
+                case .found(let text):
+                    if let decoded = AnkiLogic.decodeHard(text) { hard = decoded } else { failed = true }
+                }
+                switch reads.2 {
+                case .empty: break
+                case .failed: failed = true
+                case .found(let text):
+                    if let decoded = AnkiLogic.decodeStats(text) { stats = decoded } else { failed = true }
+                }
+                ankiLoadFailed = failed
+                let practice = practiceDay != nil
+                let finished = !practice && progress.current_day > totalDays
+                let session: AnkiSession?
+                if let day = practiceDay {
+                    session = buildAnkiSession(day: clampDay(day), progress: progress, hard: hard)
+                } else if finished {
+                    session = nil
+                } else {
+                    session = buildAnkiSession(day: progress.current_day, progress: progress, hard: hard)
+                }
+                updateAnki {
+                    $0.loading = false
+                    $0.progress = progress
+                    $0.hard = hard
+                    $0.stats = stats
+                    $0.loadFailed = failed
+                    $0.session = session
+                    $0.index = 0
+                    $0.revealed = false
+                    $0.practice = practice
+                    $0.phase = finished ? .finished : .day
+                }
+            } catch {
+                // Couldn't read: never treat that as "nothing saved" (saving stays off).
+                ankiLoadFailed = true
+                updateAnki {
+                    $0.loading = false
+                    $0.loadFailed = true
+                }
+            }
+        }
+    }
+
+    /// Saves one Anki value unless the load failed (in which case what is saved must not be overwritten).
+    private func persistAnki(_ key: String, _ jsonText: String) {
+        if ankiLoadFailed { return }
+        Task { [self] in
+            do {
+                try await authed { try await self.api.saveAppState($0, key: key, jsonText: jsonText) }
+                updateAnki { $0.saveFailed = false }
+            } catch {
+                updateAnki { $0.saveFailed = true }
+            }
+        }
+    }
+
+    func ankiShowAnswer() {
+        updateAnki { if $0.session != nil && !$0.revealed { $0.revealed = true } }
+    }
+
+    func ankiNext() {
+        guard let a = anki, let session = a.session else { return }
+        if a.index + 1 >= session.items.count {
+            finishAnkiSession()
+        } else {
+            updateAnki {
+                $0.index = a.index + 1
+                $0.revealed = false
+            }
+        }
+    }
+
+    func ankiPrevious() {
+        updateAnki {
+            if $0.index > 0 {
+                $0.index -= 1
+                $0.revealed = false
+            }
+        }
+    }
+
+    func ankiToggleHard(_ cardId: String) {
+        guard let a = anki else { return }
+        let adding = !a.hard.contains(cardId)
+        let hard = adding ? a.hard + [cardId] : a.hard.filter { $0 != cardId }
+        let stats = adding ? AnkiLogic.markHard(a.stats, cardId) : a.stats
+        updateAnki {
+            $0.hard = hard
+            $0.stats = stats
+        }
+        if adding { persistAnki("card-stats", AnkiLogic.encodeStats(stats)) }
+        persistAnki("hard-words", AnkiLogic.encodeHard(hard))
+    }
+
+    private func finishAnkiSession() {
+        guard let a = anki, let session = a.session else { return }
+        if a.practice {
+            // Bonus practice: no progress, streak or card-stat changes.
+            updateAnki {
+                $0.practice = false
+                $0.phase = .complete
+                $0.completion = CompletionInfo(day: session.dayNumber, remaining: totalDays - a.progress.completed_days.count,
+                                               streak: a.progress.streak_count)
+            }
+            return
+        }
+        let done = StudyLogic.completeDay(a.progress, day: session.dayNumber)
+        let next = done.progress
+        let stats = AnkiLogic.markSeen(a.stats, session)
+        updateAnki {
+            $0.progress = next
+            $0.stats = stats
+            $0.completion = CompletionInfo(day: session.dayNumber, remaining: totalDays - next.completed_days.count, streak: done.streak)
+            $0.phase = next.current_day > totalDays ? .finished : .complete
+        }
+        persistAnki("card-stats", AnkiLogic.encodeStats(stats))
+        persistAnki("progress", StudyLogic.encode(next))
+    }
+
+    func ankiPracticeAgain(_ day: Int) {
+        guard let a = anki else { return }
+        stopSpeech()
+        let session = buildAnkiSession(day: day, progress: a.progress, hard: a.hard)
+        updateAnki {
+            $0.session = session
+            $0.index = 0
+            $0.revealed = false
+            $0.practice = true
+            $0.phase = .day
+        }
+    }
+
+    func ankiContinueToNextDay() {
+        guard let a = anki else { return }
+        stopSpeech()
+        if a.progress.current_day > totalDays {
+            updateAnki { $0.phase = .finished }
+            return
+        }
+        let session = buildAnkiSession(day: a.progress.current_day, progress: a.progress, hard: a.hard)
+        updateAnki {
+            $0.session = session
+            $0.index = 0
+            $0.revealed = false
+            $0.phase = .day
+        }
+    }
+
+    func ankiAskReset(_ confirming: Bool) {
+        updateAnki { $0.confirmingReset = confirming }
+    }
+
+    func ankiDoReset() {
+        let fresh = SectionProgress()
+        stopSpeech()
+        let session = buildAnkiSession(day: 1, progress: fresh, hard: [])
+        updateAnki {
+            $0.progress = fresh
+            $0.hard = []
+            $0.stats = [:]
+            $0.confirmingReset = false
+            $0.session = session
+            $0.index = 0
+            $0.revealed = false
+            $0.practice = false
+            $0.phase = .day
+            $0.completion = nil
+        }
+        persistAnki("progress", StudyLogic.encode(fresh))
+        persistAnki("hard-words", AnkiLogic.encodeHard([]))
+        persistAnki("card-stats", AnkiLogic.encodeStats([:]))
+    }
+
+    // MARK: Audio (French pronunciation)
+
+    /// Says a French word or phrase. Quietly does nothing if the audio isn't available.
+    func speak(_ text: String) {
+        speakTask?.cancel()
+        speakTask = Task { [self] in
+            let audio = try? await authed { try await self.api.textToSpeech($0, text: text) }
+            if Task.isCancelled { return }
+            if let audio, let data = audio { speech.play(data) }
+        }
+    }
+
+    private func stopSpeech() {
+        speakTask?.cancel()
+        speech.stop()
     }
 }

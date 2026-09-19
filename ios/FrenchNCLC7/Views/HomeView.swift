@@ -99,7 +99,7 @@ struct HomeView: View {
                                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(c.border))
                                 .foregroundColor(c.text)
                             Button("Go") {
-                                if let n = Int(jump), (1...totalDays).contains(n) { model.open(.anki, day: n) }
+                                if let n = Int(jump), (1...totalDays).contains(n) { model.browseDay(n) }
                             }
                             .fontWeight(.medium)
                             .padding(.horizontal, 20).padding(.vertical, 12)

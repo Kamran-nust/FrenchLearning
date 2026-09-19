@@ -14,13 +14,14 @@ Working in this phase (the same scope as the Android app):
 - Signed-in strip with tier (Free / Premium / Super)
 - Four colour themes (same tokens as the web app)
 - Home screen with "Day N complete" progress across all five sections
+- **Anki flashcards** with French pronunciation: today's new words (French to English), then review words from earlier days in a random direction (how many grows from about 5 to about 40 as days are completed; words you flag as hard come up five times as often), show answer, previous/next, the day's finish and streak, "Practice this day again" bonus rounds that don't change progress, reset. Audio uses the same text-to-speech function as the web app. Progress, hard words and card statistics are saved in the web app's exact format, so they are shared.
 - **Writing with AI feedback**: the same behaviour as the Android app (word count, auto-save, AI feedback within your daily allowance, entries shared with the web app)
 - Grammar, Kwiziq, TV5MONDE and Writing: read the day, **Mark day complete**, streaks, "Day N done" and "All 301 days done" screens, reset progress (same behaviour and same saved format as the web app and the Android app)
-- Read-only day viewer for Anki (flashcard sessions not built yet) and for jumping to any day
+- A read-only day viewer for jumping to any day (with a button to practice that day's flashcards)
 - Unit tests for the plan data, progress and streak logic
 
-Not built yet: Anki sessions, Grammar PDFs,
-direct lesson links, day-plan PDF download, admin page, text-to-speech.
+Not built yet: Grammar PDFs,
+direct lesson links, day-plan PDF download, admin page.
 
 ## Run it (on a Mac)
 ```bash

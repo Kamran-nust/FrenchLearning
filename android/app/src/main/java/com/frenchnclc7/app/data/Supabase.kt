@@ -233,4 +233,13 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
         if (reply.status == 401) throw ApiException("Session expired.", 401)
         return FeedbackParser.outcome(reply.status, reply.body)
     }
+
+    /** French pronunciation for a word or phrase (an MP3), from the same text-to-speech function the web app uses. Null if unavailable. */
+    suspend fun textToSpeech(session: Session, text: String): ByteArray? {
+        val reply = call("POST", "/functions/v1/text-to-speech", session.accessToken, buildJsonObject { put("text", text) })
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) return null
+        val audio = (parse(reply.body) as? JsonObject)?.get("audioContent")?.jsonPrimitive?.contentOrNull ?: return null
+        return try { java.util.Base64.getDecoder().decode(audio) } catch (e: IllegalArgumentException) { null }
+    }
 }

@@ -3,7 +3,11 @@ package com.frenchnclc7.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.frenchnclc7.app.data.AnkiLogic
+import com.frenchnclc7.app.data.AnkiSession
 import com.frenchnclc7.app.data.ApiException
+import com.frenchnclc7.app.data.CardStat
+import com.frenchnclc7.app.data.SpeechPlayer
 import com.frenchnclc7.app.data.AppRead
 import com.frenchnclc7.app.data.FeedbackOutcome
 import com.frenchnclc7.app.data.FeedbackQuota
@@ -39,6 +43,8 @@ sealed interface Screen {
     data object Study : Screen
     /** The Writing section: editor, AI feedback, mark day complete. */
     data object Writing : Screen
+    /** The Anki flashcards. */
+    data object Anki : Screen
 }
 
 enum class StudyPhase { DAY, COMPLETE, FINISHED }
@@ -84,6 +90,26 @@ data class WritingState(
     val resetCount: Int = 0,
 )
 
+data class AnkiState(
+    val loading: Boolean = true,
+    val progress: SectionProgress = SectionProgress(),
+    /** Cards marked "hard" (they come up more often in review). */
+    val hard: Set<String> = emptySet(),
+    val stats: Map<String, CardStat> = emptyMap(),
+    val session: AnkiSession? = null,
+    val index: Int = 0,
+    val revealed: Boolean = false,
+    /** DAY = a session is running. */
+    val phase: StudyPhase = StudyPhase.DAY,
+    val completion: CompletionInfo? = null,
+    /** A bonus round for a chosen day: nothing about progress, streak or stats changes. */
+    val practice: Boolean = false,
+    /** Saved progress couldn't be read: saving is switched off so it can never be overwritten. */
+    val loadFailed: Boolean = false,
+    val saveFailed: Boolean = false,
+    val confirmingReset: Boolean = false,
+)
+
 data class UiState(
     val screen: Screen = Screen.Loading,
     val session: Session? = null,
@@ -97,12 +123,14 @@ data class UiState(
     val authNotice: String? = null,
     val study: StudyState? = null,
     val writing: WritingState? = null,
+    val anki: AnkiState? = null,
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val api = SupabaseApi()
     private val store = LocalStore(app)
     val plan = PlanRepository(app)
+    private val speech = SpeechPlayer(app)
 
     private val _state = MutableStateFlow(UiState(themeId = store.themeId))
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -216,6 +244,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun clearAuthMessages() = _state.update { it.copy(authError = null, authNotice = null) }
 
     fun signOut() {
+        stopSpeech()
         store.clearSession()
         _state.update { UiState(screen = Screen.Auth, themeId = it.themeId) }
     }
@@ -228,10 +257,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Navigation -------------------------------------------------------------------------
 
     /** Opens a section on a day. Grammar, Kwiziq, TV5MONDE and Writing use the study screen; Anki the read-only viewer. */
+    /** The read-only day viewer (Home's "Jump to a day"). */
+    fun browseDay(day: Int) {
+        flushWriting()
+        stopSpeech()
+        _state.update { it.copy(screen = Screen.Day(PlanSection.ANKI, day.coerceIn(1, TOTAL_DAYS)), study = null, writing = null, anki = null) }
+    }
+
     fun open(section: PlanSection, day: Int? = null) {
         if (section == PlanSection.ANKI) {
             flushWriting()
-            _state.update { it.copy(screen = Screen.Day(section, day ?: 1), study = null, writing = null) }
+            openAnki(day)
             return
         }
         if (section == PlanSection.WRITING) {
@@ -251,9 +287,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Home. Also re-reads the overall progress so "Day N complete" reflects what was just done. */
     fun home() {
-        val hadStudy = _state.value.study != null || _state.value.writing != null
+        val hadStudy = _state.value.study != null || _state.value.writing != null || _state.value.anki != null
         flushWriting()
-        _state.update { it.copy(screen = Screen.Home, study = null, writing = null) }
+        stopSpeech()
+        _state.update { it.copy(screen = Screen.Home, study = null, writing = null, anki = null) }
         if (hadStudy) refreshOverview()
     }
 
@@ -517,5 +554,187 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         persistWriting(PlanSection.WRITING.storageKey, ProgressLogic.encode(fresh))
         persistWriting("writing-entries", WritingLogic.encodeEntries(emptyMap()))
+    }
+
+    // ---- Anki flashcards ------------------------------------------------------------------------
+
+    private var ankiLoadFailed = false
+    private var speakJob: Job? = null
+
+    private fun updateAnki(change: (AnkiState) -> AnkiState) {
+        _state.update { ui -> ui.anki?.let { ui.copy(anki = change(it)) } ?: ui }
+    }
+
+    private fun ankiDays() = plan.days(PlanSection.ANKI)
+
+    private fun buildAnkiSession(day: Int, progress: SectionProgress, hard: Set<String>): AnkiSession? =
+        AnkiLogic.buildSession(ankiDays(), day, progress.completed_days.size, hard)
+
+    /**
+     * Opens the flashcards. With no [practiceDay] it is today's real session; with one it is a bonus
+     * practice round for that day (no progress, streak or stats change).
+     */
+    private fun openAnki(practiceDay: Int?) {
+        ankiLoadFailed = false
+        stopSpeech()
+        _state.update { it.copy(screen = Screen.Anki, study = null, writing = null, anki = AnkiState()) }
+        viewModelScope.launch {
+            try {
+                val reads = authed { s ->
+                    Triple(api.readAppValue(s, "progress"), api.readAppValue(s, "hard-words"), api.readAppValue(s, "card-stats"))
+                }
+                var failed = false
+                val progress = when (val r = reads.first) {
+                    AppRead.Empty -> SectionProgress()
+                    AppRead.Failed -> { failed = true; SectionProgress() }
+                    is AppRead.Found -> ProgressLogic.decode(r.text) ?: run { failed = true; SectionProgress() }
+                }
+                val hard: Set<String> = when (val r = reads.second) {
+                    AppRead.Empty -> emptySet()
+                    AppRead.Failed -> { failed = true; emptySet() }
+                    is AppRead.Found -> AnkiLogic.decodeHard(r.text) ?: run { failed = true; emptySet() }
+                }
+                val stats: Map<String, CardStat> = when (val r = reads.third) {
+                    AppRead.Empty -> emptyMap()
+                    AppRead.Failed -> { failed = true; emptyMap() }
+                    is AppRead.Found -> AnkiLogic.decodeStats(r.text) ?: run { failed = true; emptyMap() }
+                }
+                ankiLoadFailed = failed
+                val practice = practiceDay != null
+                val finished = !practice && progress.current_day > TOTAL_DAYS
+                val session = when {
+                    practice -> buildAnkiSession(practiceDay!!.coerceIn(1, TOTAL_DAYS), progress, hard)
+                    finished -> null
+                    else -> buildAnkiSession(progress.current_day, progress, hard)
+                }
+                updateAnki {
+                    it.copy(
+                        loading = false, progress = progress, hard = hard, stats = stats, loadFailed = failed,
+                        session = session, index = 0, revealed = false, practice = practice,
+                        phase = if (finished) StudyPhase.FINISHED else StudyPhase.DAY,
+                    )
+                }
+            } catch (e: ApiException) {
+                // Couldn't read: never treat that as "nothing saved" (saving stays off).
+                ankiLoadFailed = true
+                updateAnki { it.copy(loading = false, loadFailed = true) }
+            }
+        }
+    }
+
+    /** Saves one Anki value unless the load failed (in which case what is saved must not be overwritten). */
+    private fun persistAnki(key: String, jsonText: String) {
+        if (ankiLoadFailed) return
+        viewModelScope.launch {
+            try {
+                authed { api.saveAppState(it, key, jsonText) }
+                updateAnki { it.copy(saveFailed = false) }
+            } catch (e: ApiException) {
+                updateAnki { it.copy(saveFailed = true) }
+            }
+        }
+    }
+
+    fun ankiShowAnswer() = updateAnki { if (it.session == null || it.revealed) it else it.copy(revealed = true) }
+
+    fun ankiNext() {
+        val a = _state.value.anki ?: return
+        val session = a.session ?: return
+        if (a.index + 1 >= session.items.size) finishAnkiSession() else updateAnki { it.copy(index = a.index + 1, revealed = false) }
+    }
+
+    fun ankiPrevious() = updateAnki { if (it.index == 0) it else it.copy(index = it.index - 1, revealed = false) }
+
+    fun ankiToggleHard(cardId: String) {
+        val a = _state.value.anki ?: return
+        val adding = cardId !in a.hard
+        val hard = if (adding) a.hard + cardId else a.hard - cardId
+        val stats = if (adding) AnkiLogic.markHard(a.stats, cardId) else a.stats
+        updateAnki { it.copy(hard = hard, stats = stats) }
+        if (adding) persistAnki("card-stats", AnkiLogic.encodeStats(stats))
+        persistAnki("hard-words", AnkiLogic.encodeHard(hard))
+    }
+
+    private fun finishAnkiSession() {
+        val a = _state.value.anki ?: return
+        val session = a.session ?: return
+        if (a.practice) {
+            // Bonus practice: no progress, streak or card-stat changes.
+            updateAnki {
+                it.copy(
+                    practice = false, phase = StudyPhase.COMPLETE,
+                    completion = CompletionInfo(session.dayNumber, TOTAL_DAYS - a.progress.completed_days.size, a.progress.streak_count),
+                )
+            }
+            return
+        }
+        val done = ProgressLogic.completeDay(a.progress, session.dayNumber)
+        val next = done.progress
+        val stats = AnkiLogic.markSeen(a.stats, session)
+        updateAnki {
+            it.copy(
+                progress = next, stats = stats,
+                completion = CompletionInfo(session.dayNumber, TOTAL_DAYS - next.completed_days.size, done.streak),
+                phase = if (next.current_day > TOTAL_DAYS) StudyPhase.FINISHED else StudyPhase.COMPLETE,
+            )
+        }
+        persistAnki("card-stats", AnkiLogic.encodeStats(stats))
+        persistAnki("progress", ProgressLogic.encode(next))
+    }
+
+    fun ankiPracticeAgain(day: Int) {
+        val a = _state.value.anki ?: return
+        stopSpeech()
+        updateAnki { it.copy(session = buildAnkiSession(day, a.progress, a.hard), index = 0, revealed = false, practice = true, phase = StudyPhase.DAY) }
+    }
+
+    fun ankiContinueToNextDay() {
+        val a = _state.value.anki ?: return
+        stopSpeech()
+        if (a.progress.current_day > TOTAL_DAYS) {
+            updateAnki { it.copy(phase = StudyPhase.FINISHED) }
+            return
+        }
+        updateAnki {
+            it.copy(session = buildAnkiSession(a.progress.current_day, a.progress, a.hard), index = 0, revealed = false, phase = StudyPhase.DAY)
+        }
+    }
+
+    fun ankiAskReset(confirming: Boolean) = updateAnki { it.copy(confirmingReset = confirming) }
+
+    fun ankiDoReset() {
+        val fresh = SectionProgress()
+        stopSpeech()
+        updateAnki {
+            it.copy(
+                progress = fresh, hard = emptySet(), stats = emptyMap(), confirmingReset = false,
+                session = buildAnkiSession(1, fresh, emptySet()), index = 0, revealed = false, practice = false,
+                phase = StudyPhase.DAY, completion = null,
+            )
+        }
+        persistAnki("progress", ProgressLogic.encode(fresh))
+        persistAnki("hard-words", AnkiLogic.encodeHard(emptyList()))
+        persistAnki("card-stats", AnkiLogic.encodeStats(emptyMap()))
+    }
+
+    // ---- Audio (French pronunciation) -------------------------------------------------------------
+
+    /** Says a French word or phrase. Quietly does nothing if the audio isn't available. */
+    fun speak(text: String) {
+        speakJob?.cancel()
+        speakJob = viewModelScope.launch {
+            val audio = try { authed { api.textToSpeech(it, text) } } catch (e: ApiException) { null }
+            if (audio != null) speech.play(audio)
+        }
+    }
+
+    private fun stopSpeech() {
+        speakJob?.cancel()
+        speech.stop()
+    }
+
+    override fun onCleared() {
+        stopSpeech()
+        super.onCleared()
     }
 }
