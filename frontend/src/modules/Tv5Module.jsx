@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Tv, ExternalLink, BookOpen } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
-import { todayKey, waitForStorage, diagnoseStorage } from "../shared/storage";
+import { todayKey, waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
+import StorageNotice from "../shared/StorageNotice.jsx";
 import { splitLessonChips } from "../shared/textHelpers";
 import { useLessonLinks } from "../lib/lessonLinks";
 import { TV5_DAYS } from "../data/tv5Days";
@@ -25,6 +26,7 @@ export default function Tv5Module({ onBack, startDay }) {
   const [phase, setPhase] = useState("loading");
   const [progress, setProgress] = useState(TV5_FRESH_PROGRESS);
   const [storageOk, setStorageOk] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [completionInfo, setCompletionInfo] = useState(null);
   const [viewDay, setViewDay] = useState(1);
@@ -34,12 +36,12 @@ export default function Tv5Module({ onBack, startDay }) {
     let cancelled = false;
     async function init() {
       let p = null;
+      let failed = false;
       const present = await waitForStorage(10, 300);
       if (present) {
-        try {
-          const r = await window.storage.get("tv5-progress", false);
-          if (r && r.value) p = JSON.parse(r.value);
-        } catch {}
+        const res = await readSaved("tv5-progress");
+        if (res.ok) p = res.value;
+        else failed = true;
       }
       const diag = present
         ? await diagnoseStorage()
@@ -48,6 +50,7 @@ export default function Tv5Module({ onBack, startDay }) {
       const finalProgress = p || TV5_FRESH_PROGRESS;
       setProgress(finalProgress);
       setStorageOk(diag.ok);
+      setLoadFailed(failed);
       setViewDay(
         startDay ? Math.max(1, Math.min(startDay, TV5_TOTAL)) : Math.min(finalProgress.current_day, TV5_TOTAL),
       );
@@ -60,6 +63,7 @@ export default function Tv5Module({ onBack, startDay }) {
   }, []);
 
   async function persist(key, value) {
+    if (loadFailed) return; // a failed load must never be overwritten by a save
     try {
       if (typeof window !== "undefined" && window.storage) {
         await window.storage.set(key, JSON.stringify(value), false);
@@ -271,13 +275,7 @@ export default function Tv5Module({ onBack, startDay }) {
       <GlobalStyle />
       {Header}
 
-      {!storageOk && (
-        <div className="w-full max-w-md mx-auto px-5 mb-2">
-          <div className="text-xs px-3 py-2 rounded-lg" style={{ background: COLORS.hardSoft, color: COLORS.warnText }}>
-            Progress isn't saving right now — it may be lost if you reload.
-          </div>
-        </div>
-      )}
+      <StorageNotice storageOk={storageOk} loadFailed={loadFailed} />
 
       <div className="flex-1 flex flex-col items-center px-5 pt-2">
         <div className="w-full max-w-md">

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Loader2, Sparkles } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
-import { todayKey, waitForStorage, diagnoseStorage } from "../shared/storage";
+import { todayKey, waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
+import StorageNotice from "../shared/StorageNotice.jsx";
 import { WRITING_DAYS } from "../data/writingDays";
 import { fetchWritingFeedback, fetchFeedbackQuota } from "../lib/writingFeedback";
 
@@ -38,6 +39,7 @@ export default function WritingModule({ onBack, startDay }) {
   const [progress, setProgress] = useState(WRITING_FRESH_PROGRESS);
   const [entries, setEntries] = useState({});
   const [storageOk, setStorageOk] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [completionInfo, setCompletionInfo] = useState(null);
   const [viewDay, setViewDay] = useState(1);
@@ -62,16 +64,13 @@ export default function WritingModule({ onBack, startDay }) {
     async function init() {
       let p = null;
       let ent = {};
+      let failed = false;
       const present = await waitForStorage(10, 300);
       if (present) {
-        try {
-          const r = await window.storage.get("writing-progress", false);
-          if (r && r.value) p = JSON.parse(r.value);
-        } catch {}
-        try {
-          const r = await window.storage.get("writing-entries", false);
-          if (r && r.value) ent = JSON.parse(r.value);
-        } catch {}
+        const [rp, re] = await Promise.all([readSaved("writing-progress"), readSaved("writing-entries")]);
+        if (rp.ok) p = rp.value;
+        if (re.ok && re.value) ent = re.value;
+        if (!rp.ok || !re.ok) failed = true;
       }
       const diag = present
         ? await diagnoseStorage()
@@ -81,6 +80,7 @@ export default function WritingModule({ onBack, startDay }) {
       setProgress(finalProgress);
       setEntries(ent);
       setStorageOk(diag.ok);
+      setLoadFailed(failed);
       const initialDay = startDay
         ? Math.max(1, Math.min(startDay, WRITING_TOTAL))
         : Math.min(finalProgress.current_day, WRITING_TOTAL);
@@ -95,6 +95,7 @@ export default function WritingModule({ onBack, startDay }) {
   }, []);
 
   async function persist(key, value) {
+    if (loadFailed) return; // a failed load must never be overwritten by a save
     try {
       if (typeof window !== "undefined" && window.storage) {
         await window.storage.set(key, JSON.stringify(value), false);
@@ -374,13 +375,7 @@ export default function WritingModule({ onBack, startDay }) {
       <GlobalStyle />
       {Header}
 
-      {!storageOk && (
-        <div className="w-full max-w-md mx-auto px-5 mb-2">
-          <div className="text-xs px-3 py-2 rounded-lg" style={{ background: COLORS.hardSoft, color: COLORS.warnText }}>
-            Progress isn't saving right now — it may be lost if you reload.
-          </div>
-        </div>
-      )}
+      <StorageNotice storageOk={storageOk} loadFailed={loadFailed} />
 
       <div className="flex-1 flex flex-col items-center px-5 pt-2 pb-6">
         <div className="w-full max-w-md">

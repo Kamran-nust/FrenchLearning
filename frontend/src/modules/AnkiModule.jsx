@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Flame, Flag, Volume2, RotateCcw, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
-import { todayKey, waitForStorage, diagnoseStorage } from "../shared/storage";
+import { todayKey, waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
+import StorageNotice from "../shared/StorageNotice.jsx";
 import { DAYS } from "../data/ankiDays";
 
 const TOTAL_DAYS = DAYS.length;
@@ -98,6 +99,7 @@ export default function AnkiModule({ onBack, startDay }) {
   const [revealed, setRevealed] = useState(false);
   const [completionInfo, setCompletionInfo] = useState(null);
   const [storageOk, setStorageOk] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [storageDiag, setStorageDiag] = useState("");
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [isPracticeSession, setIsPracticeSession] = useState(false);
@@ -119,19 +121,17 @@ export default function AnkiModule({ onBack, startDay }) {
       const diag = present
         ? await diagnoseStorage()
         : { ok: false, message: "window.storage is not present in this environment." };
+      let failed = !diag.ok; // couldn't even test storage, so saved data can't be trusted to be absent
       if (diag.ok) {
-        try {
-          const r = await window.storage.get("progress", false);
-          if (r && r.value) p = JSON.parse(r.value);
-        } catch {}
-        try {
-          const r = await window.storage.get("hard-words", false);
-          if (r && r.value) hw = JSON.parse(r.value);
-        } catch {}
-        try {
-          const r = await window.storage.get("card-stats", false);
-          if (r && r.value) cs = JSON.parse(r.value);
-        } catch {}
+        const [rp, rh, rc] = await Promise.all([
+          readSaved("progress"),
+          readSaved("hard-words"),
+          readSaved("card-stats"),
+        ]);
+        if (rp.ok) p = rp.value;
+        if (rh.ok && rh.value) hw = rh.value;
+        if (rc.ok && rc.value) cs = rc.value;
+        if (!rp.ok || !rh.ok || !rc.ok) failed = true;
       }
       if (cancelled) return;
       const finalProgress = p || FRESH_PROGRESS;
@@ -139,6 +139,7 @@ export default function AnkiModule({ onBack, startDay }) {
       setHardWords(new Set(hw));
       setCardStats(cs);
       setStorageOk(diag.ok);
+      setLoadFailed(failed);
       setStorageDiag(diag.message);
       if (startDay) {
         // Opened from Level/Day browsing: launch a bonus practice session for
@@ -175,7 +176,9 @@ export default function AnkiModule({ onBack, startDay }) {
       if (voiceRef.current) u.voice = voiceRef.current;
       u.rate = 0.92;
       window.speechSynthesis.speak(u);
-    } catch {}
+    } catch (error) {
+      console.warn("Speech failed", error); // audio is a nicety; the card still works without it
+    }
   }, []);
 
   const currentItem = session ? session.queue[qIndex] : null;
@@ -197,6 +200,7 @@ export default function AnkiModule({ onBack, startDay }) {
   }, [revealed]);
 
   async function persist(key, value) {
+    if (loadFailed) return; // a failed load must never be overwritten by a save
     try {
       if (typeof window !== "undefined" && window.storage) {
         await window.storage.set(key, JSON.stringify(value), false);
@@ -529,7 +533,8 @@ export default function AnkiModule({ onBack, startDay }) {
       {fontImport}
       {Header}
 
-      {!storageOk && (
+      <StorageNotice storageOk loadFailed={loadFailed} />
+      {!storageOk && !loadFailed && (
         <div className="w-full max-w-md mx-auto px-5 mb-2">
           <div className="text-xs px-3 py-2 rounded-lg" style={{ background: COLORS.hardSoft, color: COLORS.warnText }}>
             <div className="flex items-center justify-between gap-2">

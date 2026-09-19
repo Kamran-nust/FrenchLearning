@@ -22,7 +22,7 @@ export default [
       ...reactHooks.configs.recommended.rules,
       "react/prop-types": "off", // plain JS project; props are documented by usage
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
-      "no-empty": "warn", // TODO(step 3): make these real error messages, then set to "error"
+      "no-empty": "error", // swallowed errors hide real problems; say why or handle it
       "react/no-unescaped-entities": "off",
       "react-hooks/purity": "warn",
       eqeqeq: ["error", "always", { null: "ignore" }],
@@ -30,7 +30,7 @@ export default [
     },
   },
   {
-    files: ["**/*.test.js", "vitest.config.js", "vite.config.js", "tailwind.config.js", "postcss.config.js"],
+    files: ["**/*.test.{js,jsx}", "vitest.config.js", "vite.config.js", "tailwind.config.js", "postcss.config.js"],
     languageOptions: { globals: { ...globals.node } },
   },
 ];

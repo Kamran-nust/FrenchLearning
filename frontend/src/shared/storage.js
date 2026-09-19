@@ -5,6 +5,23 @@ export function todayKey() {
   return new Date().toDateString();
 }
 
+// Reads one saved value and tells "nothing saved yet" apart from "couldn't
+// read it":
+//   { ok: true, value: <parsed> }  - found
+//   { ok: true, value: null }      - nothing saved yet (safe to start fresh)
+//   { ok: false, value: null }     - the read or the parse failed (NOT safe to
+//                                    start fresh: saving would overwrite it)
+export async function readSaved(key) {
+  try {
+    const r = await window.storage.get(key, false);
+    if (!r || !r.value) return { ok: true, value: null };
+    return { ok: true, value: JSON.parse(r.value) };
+  } catch (error) {
+    console.error("Could not read saved data for " + key, error);
+    return { ok: false, value: null };
+  }
+}
+
 export function waitForStorage(maxAttempts, intervalMs) {
   return new Promise((resolve) => {
     let attempts = 0;
