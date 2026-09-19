@@ -1,0 +1,38 @@
+name: FrenchNCLC7
+options:
+  bundleIdPrefix: com.frenchnclc7
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  FrenchNCLC7:
+    type: application
+    platform: iOS
+    sources:
+      - path: FrenchNCLC7
+    info:
+      path: FrenchNCLC7/Info.plist
+      properties:
+        CFBundleDisplayName: French NCLC 7
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.frenchnclc7.app
+        GENERATE_INFOPLIST_FILE: NO
+  FrenchNCLC7Tests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: FrenchNCLC7Tests
+    dependencies:
+      - target: FrenchNCLC7
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.frenchnclc7.app.tests
+        GENERATE_INFOPLIST_FILE: YES

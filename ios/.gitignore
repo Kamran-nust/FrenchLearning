@@ -1,0 +1,6 @@
+*.xcodeproj
+xcuserdata/
+DerivedData/
+.build/
+FrenchNCLC7/Info.plist
+.DS_Store
