@@ -11,6 +11,7 @@
 // never sees the key, it only ever talks to this proxy.
 
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent";
 const MAX_INPUT_CHARS = 4000; // sanity cap - the longest writing task/draft on this plan is nowhere near this
@@ -33,6 +34,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const unauthorized = await requireUser(req);
+  if (unauthorized) return unauthorized;
 
   try {
     const { task, draft } = await req.json();

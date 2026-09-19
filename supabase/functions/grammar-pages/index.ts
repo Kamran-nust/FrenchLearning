@@ -13,12 +13,16 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument } from "npm:pdf-lib@1.17.1";
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireUser } from "../_shared/auth.ts";
 import { BOOK_TOC } from "./book_toc.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const unauthorized = await requireUser(req);
+  if (unauthorized) return unauthorized;
 
   try {
     const { book, chapters } = await req.json();

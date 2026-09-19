@@ -20,6 +20,7 @@
 
 import { GoogleAuth } from "npm:google-auth-library@9";
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 const GOOGLE_TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize";
 const VOICE_NAME = "fr-FR-Neural2-C";
@@ -41,6 +42,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const unauthorized = await requireUser(req);
+  if (unauthorized) return unauthorized;
 
   try {
     const { text } = await req.json();
