@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import { installWindowStorage } from "./lib/windowStorage";
 import { installTtsShim } from "./lib/ttsShim";
+import SessionBar from "./SessionBar.jsx";
 
 const COLORS = {
   bg: "#0B1220",
@@ -41,6 +42,10 @@ export default function AuthGate({ children }) {
     if (session) {
       installWindowStorage(session.user.id);
       installTtsShim();
+      // Don't keep the typed password in memory after signing in - otherwise
+      // it would reappear in the form after logging out.
+      setPassword("");
+      setError("");
     }
   }, [session]);
 
@@ -135,7 +140,12 @@ export default function AuthGate({ children }) {
   }
 
   if (session) {
-    return children;
+    return (
+      <>
+        <SessionBar label={session.user.email} />
+        {children}
+      </>
+    );
   }
 
   return (
