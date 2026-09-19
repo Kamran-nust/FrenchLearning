@@ -359,23 +359,33 @@ likely to get checked when picking the project back up.
 
 ---
 
-## 9.2 Deployment — in progress
+## 9.2 Deployment — complete
 
 Started once TTS upgrade and the chapter-PDF button were both confirmed as
 wanted at deployment. Platform: **Supabase** (database + backend functions
-in one place) + a static host (Vercel/Netlify) for the frontend.
+in one place) + **Vercel** for the frontend. Live at
+https://french-learning-rouge.vercel.app/ (auto-deploys on push to `main`
+of github.com/Kamran-nust/FrenchLearning; Vercel root directory is
+`frontend`).
 
 **Sequence:**
-1. Pick platform — done (Supabase).
-2. Set up external accounts (Supabase project, Google Cloud TTS key, upload
-   the 3 grammar PDFs to Supabase Storage) — **in progress, on the person**.
+1. Pick platform — done (Supabase + Vercel).
+2. External accounts (Supabase project, Google Cloud TTS service account,
+   3 grammar PDFs in Supabase Storage, Gemini API key) — **done**.
 3. Database schema + auth — **done**, see below.
-4. Two backend functions (TTS proxy, PDF extractor) — **done and tested**,
-   see below.
-5. Rewrite the frontend's storage/TTS/PDF-button touchpoints to call the
-   new backend — not started.
-6. Deploy frontend to GitHub → Vercel/Netlify — not started.
-7. End-to-end test — not started.
+4. Three backend functions (TTS proxy, PDF extractor, writing feedback) —
+   **done and tested**, see below.
+5. Frontend storage/TTS/PDF-button touchpoints — **done**, via
+   `window.storage` / `speechSynthesis` shims (`frontend/src/lib/`) so the
+   original app logic stayed unmodified.
+6. Deploy frontend to GitHub → Vercel — **done**.
+7. End-to-end test on the live URL (sign-in, saved progress, TTS audio,
+   grammar PDF viewer, writing feedback, session persistence) — **done,
+   all passing**.
+
+**Post-launch cleanup:** `App.jsx` was split from a 2,855-line single file
+(inherited from the Claude.ai artifact) into `data/`, `modules/`,
+`screens/`, `shared/` and `lib/` folders; it is now a 74-line router.
 
 **Database (`supabase/migrations/0001_app_state.sql`):** one generic
 `app_state(user_id, key, value jsonb)` table with row-level security, so
