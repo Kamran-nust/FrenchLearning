@@ -135,7 +135,7 @@ struct StudyView: View {
                         if let url = LessonLinkLogic.href(study.section, chip, study.lessonLinks) { openURL(url) }
                     } label: {
                         HStack {
-                            Text("\(icon)  \(chip)").font(.system(size: 12)).foregroundColor(c.link).lineLimit(1)
+                            Text("\(icon)  \(chip)").font(.system(size: 12)).foregroundColor(c.link).lineLimit(3)
                             Spacer()
                             Text("↗").font(.system(size: 12)).foregroundColor(c.link)
                         }
@@ -149,7 +149,7 @@ struct StudyView: View {
                         if let url = URL(string: extra.url) { openURL(url) }
                     } label: {
                         HStack {
-                            Text("📖  " + extra.label).font(.system(size: 12)).foregroundColor(c.link).lineLimit(1)
+                            Text("📖  " + extra.label).font(.system(size: 12)).foregroundColor(c.link).lineLimit(3)
                             Spacer()
                             Text("↗").font(.system(size: 12)).foregroundColor(c.link)
                         }

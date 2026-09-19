@@ -8,9 +8,15 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
+import android.app.Activity
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,8 +39,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             val state by vm.state.collectAsStateWithLifecycle()
             val colors = Themes.get(state.themeId)
+            // Dark icons on the light themes, light icons on Midnight, so the clock and battery are always readable.
+            val view = LocalView.current
+            val lightTheme = colors.bg.luminance() > 0.5f
+            SideEffect {
+                val window = (view.context as Activity).window
+                val controller = WindowCompat.getInsetsController(window, view)
+                controller.isAppearanceLightStatusBars = lightTheme
+                controller.isAppearanceLightNavigationBars = lightTheme
+            }
             CompositionLocalProvider(LocalColors provides colors) {
-                Box(Modifier.fillMaxSize().background(colors.bg).statusBarsPadding()) {
+                Box(Modifier.fillMaxSize().background(colors.bg).statusBarsPadding().navigationBarsPadding()) {
                     when (val screen = state.screen) {
                         Screen.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(color = colors.accent)

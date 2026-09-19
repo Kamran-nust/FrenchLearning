@@ -175,7 +175,13 @@ final class AppModel: ObservableObject {
         do {
             return try await block(s)
         } catch let error as APIError where error.status == 401 && !s.refreshToken.isEmpty {
-            s = try await api.refresh(s.refreshToken)
+            // If the saved sign-in can't be renewed (the server says no, e.g. the account or session is gone),
+            // treat it as signed out. A network problem (no status) is passed on as it is.
+            do {
+                s = try await api.refresh(s.refreshToken)
+            } catch let refreshError as APIError where (400...499).contains(refreshError.status) {
+                throw APIError("Please sign in again.", status: 401)
+            }
             store.saveSession(s)
             session = s
             return try await block(s)

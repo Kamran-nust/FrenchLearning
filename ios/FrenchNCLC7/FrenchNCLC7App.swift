@@ -46,5 +46,6 @@ struct RootView: View {
                 DayView(section: section, day: day)
             }
         }
+        .preferredColorScheme(model.themeId == Themes.defaultId ? .dark : .light)
     }
 }

@@ -176,7 +176,7 @@ private fun DayCard(study: StudyState, section: PlanSection, viewed: com.frenchn
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("$icon  $chip", color = c.link, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                    Text("$icon  $chip", color = c.link, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 3)
                     Text("↗", color = c.link, fontSize = 12.sp)
                 }
             }
@@ -187,7 +187,7 @@ private fun DayCard(study: StudyState, section: PlanSection, viewed: com.frenchn
                         .clickable { uri.openUri(extra.url) }.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("📖  " + extra.label, color = c.link, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                    Text("📖  " + extra.label, color = c.link, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 3)
                     Text("↗", color = c.link, fontSize = 12.sp)
                 }
             }

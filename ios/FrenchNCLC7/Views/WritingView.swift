@@ -202,7 +202,7 @@ private struct WritingDayCard: View {
                 if let feedbackText, !feedbackText.isEmpty, w.feedback != .loading {
                     Divider().background(c.border)
                     Text("✦ Feedback").font(.system(size: 12, weight: .medium)).foregroundColor(c.gold)
-                    Text(feedbackText).font(.system(size: 14)).lineSpacing(4).foregroundColor(c.text)
+                    Text(FeedbackFormat.attributed(feedbackText)).font(.system(size: 14)).lineSpacing(4).foregroundColor(c.text)
                         .textSelection(.enabled)
                 }
             }

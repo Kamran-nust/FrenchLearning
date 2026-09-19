@@ -201,7 +201,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return block(s)
         } catch (e: ApiException) {
             if (e.status == 401 && s.refreshToken.isNotEmpty()) {
-                s = api.refresh(s.refreshToken)
+                // If the saved sign-in can't be renewed (the server says no, e.g. the account or session is gone),
+                // treat it as signed out. A network problem (no status) is passed on as it is.
+                s = try {
+                    api.refresh(s.refreshToken)
+                } catch (r: ApiException) {
+                    if (r.status in 400..499) throw ApiException("Please sign in again.", 401) else throw r
+                }
                 store.saveSession(s)
                 _state.update { it.copy(session = s) }
                 return block(s)

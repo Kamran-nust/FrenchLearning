@@ -30,6 +30,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,6 +43,7 @@ import com.frenchnclc7.app.SaveState
 import com.frenchnclc7.app.StudyPhase
 import com.frenchnclc7.app.WritingState
 import com.frenchnclc7.app.data.DayContent
+import com.frenchnclc7.app.data.FeedbackMarkdown
 import com.frenchnclc7.app.data.PlanSection
 import com.frenchnclc7.app.data.TOTAL_DAYS
 import com.frenchnclc7.app.data.WritingLogic
@@ -192,7 +196,7 @@ private fun WritingDay(w: WritingState, viewed: DayContent, vm: AppViewModel) {
             Text(
                 if (w.feedback == FeedbackUi.LOADING) "✦ Getting feedback…" else "✦ Get feedback",
                 color = c.gold, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(c.accentSoft.copy(alpha = if (canAsk) 1f else 0.5f))
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (canAsk) c.accentSoft else c.accentSoft.copy(alpha = c.accentSoft.alpha * 0.5f))
                     .clickable(enabled = canAsk) { vm.getWritingFeedback() }.padding(vertical = 10.dp),
             )
 
@@ -225,7 +229,16 @@ private fun WritingDay(w: WritingState, viewed: DayContent, vm: AppViewModel) {
                 Column(Modifier.fillMaxWidth()) {
                     Text("✦ Feedback", color = c.gold, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(8.dp))
-                    Text(feedbackText, color = c.text, fontSize = 14.sp, lineHeight = 21.sp)
+                    Text(
+                        buildAnnotatedString {
+                            FeedbackMarkdown.pieces(feedbackText).forEach { p ->
+                                pushStyle(SpanStyle(fontWeight = if (p.bold) FontWeight.Bold else null, fontStyle = if (p.italic) FontStyle.Italic else null))
+                                append(p.text)
+                                pop()
+                            }
+                        },
+                        color = c.text, fontSize = 14.sp, lineHeight = 21.sp,
+                    )
                 }
             }
         }
