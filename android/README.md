@@ -17,10 +17,13 @@ Not built yet (the web app has these; each is a separate piece of work):
 - Anki flashcard sessions, Grammar/Kwiziq/TV5 "mark day complete" + streaks, Writing editor + AI feedback,
   Grammar PDFs, direct lesson links, day-plan PDF download, admin page, text-to-speech.
 
+## Verified
+Compiles with Gradle 8.13 / AGP 8.10.1 / Kotlin 2.1.20 (`./gradlew :app:testDebugUnitTest :app:assembleDebug`): build succeeds, 6 unit tests pass, debug APK is about 10 MB. The exact server calls the app makes were also tested against the live backend. It has not yet been run on an emulator or phone.
+
 ## Run it
 1. Install Android Studio and open the `android/` folder (Gradle sync runs automatically).
 2. Pick an emulator or a phone with USB debugging, press Run.
-3. Tests: `./gradlew test` (or run them from Android Studio).
+3. Tests: `./gradlew test` (or run them from Android Studio). If Android Studio does not find the Android SDK, it creates `local.properties` for you (that file is not committed).
 
 ## Plan data
 `app/src/main/assets/plan/*.json` is generated from the web app's data
