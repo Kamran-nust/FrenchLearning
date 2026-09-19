@@ -491,6 +491,22 @@ on the account (`theme` key) so it follows the user across devices. All
 text/background pairs in every theme were checked to meet WCAG AA (4.5:1).
 Rule for new UI: use tokens from `COLORS`, never hardcoded hex colours.
 
+**Account tiers (added post-launch): free < premium < super.**
+- Stored server-side in `user_tiers` (`0003_tiers.sql`): every account gets a
+  row (free by default, via trigger; existing accounts were backfilled). There
+  are no insert/update/delete policies, so a tier can never be changed from
+  the browser - only via the dashboard/SQL, or `set_user_tier()` (super users
+  only, and it refuses to remove the last super user).
+- Frontend: `shared/tiers.js` (tier order, and the `FEATURES` map of feature ->
+  lowest allowed tier), `TierContext.jsx` (`useTier()`), `Gate.jsx`
+  (`<Gate feature="x" fallback={...}>`), and a tier label in the top strip.
+  Unknown feature names and unreadable tiers fail closed (denied / free).
+- UI gating only hides things. Anything that must really be restricted (an
+  Edge Function, stored data) must also be enforced server-side, e.g. by
+  checking `current_tier()` in the function.
+- Assign a tier: `update user_tiers set tier = 'premium' where user_id =
+  (select id from auth.users where email = 'someone@example.com');`
+
 **Planned upgrade: OAuth (Google sign-in).** Parked for later, same reasoning
 pattern as the TTS/PDF upgrades in §6.1/§9.1 — not something blocking current
 use, worth doing when convenient. Would mean registering an OAuth app in

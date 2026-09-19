@@ -5,6 +5,7 @@ import { installTtsShim } from "./lib/ttsShim";
 import SessionBar from "./SessionBar.jsx";
 import { signInWithUsername } from "./lib/usernameSignIn";
 import { COLORS } from "./shared/theme.jsx";
+import { TierProvider } from "./TierContext.jsx";
 
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 
@@ -161,10 +162,10 @@ export default function AuthGate({ children }) {
 
   if (session) {
     return (
-      <>
+      <TierProvider key={session.user.id} userId={session.user.id}>
         <SessionBar userId={session.user.id} email={session.user.email} />
         {children}
-      </>
+      </TierProvider>
     );
   }
 

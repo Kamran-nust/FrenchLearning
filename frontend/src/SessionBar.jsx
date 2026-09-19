@@ -3,6 +3,8 @@ import { LogOut } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { COLORS } from "./shared/theme.jsx";
 import ThemePicker from "./ThemePicker.jsx";
+import { useTier } from "./TierContext.jsx";
+import { TIER_LABELS } from "./shared/tiers";
 
 export default function SessionBar({ userId, email }) {
   const [signingOut, setSigningOut] = useState(false);
@@ -24,6 +26,7 @@ export default function SessionBar({ userId, email }) {
   }, [userId]);
 
   const label = username || email;
+  const { tier, loading } = useTier();
 
   async function logout() {
     setSigningOut(true);
@@ -33,8 +36,23 @@ export default function SessionBar({ userId, email }) {
   return (
     <div style={{ background: COLORS.card, borderBottom: "1px solid " + COLORS.border, fontFamily: "'IBM Plex Sans', sans-serif" }}>
       <div className="w-full max-w-md mx-auto px-5 py-1.5 flex items-center justify-between text-xs" style={{ color: COLORS.muted }}>
-        <span className="truncate">
-          Signed in as <strong style={{ color: COLORS.text, fontWeight: 500 }}>{label}</strong>
+        <span className="truncate flex items-center gap-2">
+          <span className="truncate">
+            Signed in as <strong style={{ color: COLORS.text, fontWeight: 500 }}>{label}</strong>
+          </span>
+          {!loading && (
+            <span
+              className="shrink-0 px-2 py-0.5 rounded-full"
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                background: tier === "super" ? COLORS.goldSoft : COLORS.accentSoft,
+                color: tier === "super" ? COLORS.gold : tier === "premium" ? COLORS.link : COLORS.muted,
+              }}
+            >
+              {TIER_LABELS[tier]}
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-4 shrink-0 ml-3">
           <ThemePicker />
