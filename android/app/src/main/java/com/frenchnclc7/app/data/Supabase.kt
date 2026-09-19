@@ -285,4 +285,20 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
                 GrammarPagesResult.Failed
             }
         }
+
+    /**
+     * The direct lesson links for a module ("kwiziq" or "tv5"): approved chip links and extra links.
+     * Only premium and super accounts are given rows by the database; anyone else gets nothing back.
+     * A part that can't be read counts as empty, so the chips simply stay Google searches.
+     */
+    suspend fun lessonLinks(session: Session, module: String): LessonLinks {
+        val chips = call("GET", "/rest/v1/lesson_links?select=chip,url&module=eq.$module&approved=eq.true", session.accessToken)
+        if (chips.status == 401) throw ApiException("Session expired.", 401)
+        val extras = call("GET", "/rest/v1/lesson_extra_links?select=day,label,url,sort&module=eq.$module&approved=eq.true&order=sort", session.accessToken)
+        if (extras.status == 401) throw ApiException("Session expired.", 401)
+        return LessonLinkLogic.parse(
+            if (chips.status in 200..299) chips.body else null,
+            if (extras.status in 200..299) extras.body else null,
+        )
+    }
 }

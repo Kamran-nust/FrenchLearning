@@ -32,6 +32,7 @@ import com.frenchnclc7.app.AppViewModel
 import com.frenchnclc7.app.StudyPhase
 import com.frenchnclc7.app.StudyState
 import com.frenchnclc7.app.data.LessonChips
+import com.frenchnclc7.app.data.LessonLinkLogic
 import com.frenchnclc7.app.data.PlanSection
 import com.frenchnclc7.app.data.Tier
 import com.frenchnclc7.app.data.TOTAL_DAYS
@@ -164,14 +165,29 @@ private fun DayCard(study: StudyState, section: PlanSection, viewed: com.frenchn
             }
             Text(LessonChips.body(section, viewed), color = c.text, fontSize = 15.sp, lineHeight = 22.sp, textAlign = TextAlign.Center)
 
-            // Kwiziq / TV5MONDE lesson chips (a Google search for each; direct links are a later premium feature)
+            // Kwiziq / TV5MONDE lesson chips. Premium and super open the real lesson page when one is known
+            // (📖); every other chip, and every chip for free accounts, opens a Google search (🔍).
             chips.forEach { chip ->
+                val direct = LessonLinkLogic.hasDirect(chip, study.lessonLinks)
+                val icon = if (section == PlanSection.TV5) "📺" else if (direct) "📖" else "🔍"
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(c.accentSoft)
-                        .clickable { uri.openUri(LessonChips.searchUrl(section, chip)) }.padding(horizontal = 12.dp, vertical = 10.dp),
+                        .clickable { uri.openUri(LessonLinkLogic.href(section, chip, study.lessonLinks)) }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(chip, color = c.link, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                    Text("$icon  $chip", color = c.link, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                    Text("↗", color = c.link, fontSize = 12.sp)
+                }
+            }
+            // Extra lessons for this day (premium and super)
+            LessonLinkLogic.extrasFor(viewed.day, study.lessonLinks).forEach { extra ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(c.accentSoft)
+                        .clickable { uri.openUri(extra.url) }.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("📖  " + extra.label, color = c.link, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
                     Text("↗", color = c.link, fontSize = 12.sp)
                 }
             }

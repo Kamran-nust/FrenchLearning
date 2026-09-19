@@ -49,6 +49,8 @@ struct StudyState: Equatable {
     var pdfLoading = false
     var pdfError: String?
     var pdfViewer: PdfDocumentInfo?
+    /// Direct lesson links (Kwiziq / TV5MONDE, premium and super). Empty for everyone else.
+    var lessonLinks = LessonLinks.empty
 }
 
 enum SaveState: Equatable {
@@ -330,6 +332,13 @@ final class AppModel: ObservableObject {
     private func openStudy(_ section: PlanSection, startDay: Int?) {
         study = StudyState(section: section)
         screen = .study
+        // Direct lesson links: only premium and super ask for them (free accounts keep the Google searches).
+        if let linkModule = LessonLinkLogic.moduleFor(section), tier.atLeast(.premium) {
+            Task { [self] in
+                let links = (try? await authed { try await self.api.lessonLinks($0, module: linkModule) }) ?? .empty
+                updateStudy(section) { $0.lessonLinks = links }
+            }
+        }
         Task { [self] in
             do {
                 let read = try await authed { try await self.api.readAppValue($0, key: section.storageKey) }

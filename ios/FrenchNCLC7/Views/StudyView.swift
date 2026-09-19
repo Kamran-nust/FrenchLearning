@@ -126,13 +126,30 @@ struct StudyView: View {
                 Text(LessonChips.body(study.section, viewed))
                     .font(.system(size: 15)).lineSpacing(4).multilineTextAlignment(.center).foregroundColor(c.text)
 
-                // Kwiziq / TV5MONDE lesson chips (a Google search for each; direct links are a later premium feature)
+                // Kwiziq / TV5MONDE lesson chips. Premium and super open the real lesson page when one is known
+                // (📖); every other chip, and every chip for free accounts, opens a Google search (🔍).
                 ForEach(chips, id: \.self) { chip in
+                    let direct = LessonLinkLogic.hasDirect(chip, study.lessonLinks)
+                    let icon = study.section == .tv5 ? "📺" : (direct ? "📖" : "🔍")
                     Button {
-                        if let url = LessonChips.searchURL(study.section, chip) { openURL(url) }
+                        if let url = LessonLinkLogic.href(study.section, chip, study.lessonLinks) { openURL(url) }
                     } label: {
                         HStack {
-                            Text(chip).font(.system(size: 12)).foregroundColor(c.link).lineLimit(1)
+                            Text("\(icon)  \(chip)").font(.system(size: 12)).foregroundColor(c.link).lineLimit(1)
+                            Spacer()
+                            Text("↗").font(.system(size: 12)).foregroundColor(c.link)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 10)
+                        .background(c.accentSoft).clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+                // Extra lessons for this day (premium and super)
+                ForEach(LessonLinkLogic.extrasFor(viewed.day, study.lessonLinks), id: \.url) { extra in
+                    Button {
+                        if let url = URL(string: extra.url) { openURL(url) }
+                    } label: {
+                        HStack {
+                            Text("📖  " + extra.label).font(.system(size: 12)).foregroundColor(c.link).lineLimit(1)
                             Spacer()
                             Text("↗").font(.system(size: 12)).foregroundColor(c.link)
                         }

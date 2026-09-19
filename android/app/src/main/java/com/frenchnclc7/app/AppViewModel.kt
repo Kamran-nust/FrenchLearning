@@ -11,6 +11,8 @@ import com.frenchnclc7.app.data.SpeechPlayer
 import com.frenchnclc7.app.data.AppRead
 import com.frenchnclc7.app.data.BookChapters
 import com.frenchnclc7.app.data.GrammarPagesResult
+import com.frenchnclc7.app.data.LessonLinkLogic
+import com.frenchnclc7.app.data.LessonLinks
 import com.frenchnclc7.app.data.FeedbackOutcome
 import com.frenchnclc7.app.data.FeedbackQuota
 import com.frenchnclc7.app.data.LocalStore
@@ -76,6 +78,8 @@ data class StudyState(
     val pdfLoading: Boolean = false,
     val pdfError: String? = null,
     val pdfViewer: PdfViewer? = null,
+    /** Direct lesson links (Kwiziq / TV5MONDE, premium and super). Empty for everyone else. */
+    val lessonLinks: LessonLinks = LessonLinks.EMPTY,
 )
 
 enum class SaveState { IDLE, SAVING, SAVED }
@@ -311,6 +315,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun openStudy(section: PlanSection, startDay: Int?) {
         _state.update { it.copy(screen = Screen.Study, study = StudyState(section)) }
+        // Direct lesson links: only premium and super ask for them (free accounts keep the Google searches).
+        val linkModule = LessonLinkLogic.moduleFor(section)
+        if (linkModule != null && _state.value.tier.atLeast(Tier.PREMIUM)) {
+            viewModelScope.launch {
+                val links = try { authed { api.lessonLinks(it, linkModule) } } catch (e: ApiException) { LessonLinks.EMPTY }
+                updateStudy(section) { it.copy(lessonLinks = links) }
+            }
+        }
         viewModelScope.launch {
             try {
                 val read = authed { api.readAppValue(it, section.storageKey) }

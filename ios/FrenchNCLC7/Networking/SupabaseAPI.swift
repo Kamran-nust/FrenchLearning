@@ -269,4 +269,18 @@ struct SupabaseAPI {
         guard (200...299).contains(reply.status), reply.data.starts(with: Data("%PDF".utf8)) else { return .failed }
         return .pdf(reply.data)
     }
+
+    /// The direct lesson links for a module ("kwiziq" or "tv5"): approved chip links and extra links.
+    /// Only premium and super accounts are given rows by the database; anyone else gets nothing back.
+    /// A part that can't be read counts as empty, so the chips simply stay Google searches.
+    func lessonLinks(_ session: Session, module: String) async throws -> LessonLinks {
+        let chips = try? await call("GET", "/rest/v1/lesson_links?select=chip,url&module=eq.\(module)&approved=eq.true", token: session.accessToken)
+        if chips?.status == 401 { throw APIError("Session expired.", status: 401) }
+        let extras = try? await call("GET", "/rest/v1/lesson_extra_links?select=day,label,url,sort&module=eq.\(module)&approved=eq.true&order=sort", token: session.accessToken)
+        if extras?.status == 401 { throw APIError("Session expired.", status: 401) }
+        return LessonLinkLogic.parse(
+            chipRows: (chips.flatMap { (200...299).contains($0.status) ? $0.data : nil }),
+            extraRows: (extras.flatMap { (200...299).contains($0.status) ? $0.data : nil })
+        )
+    }
 }
