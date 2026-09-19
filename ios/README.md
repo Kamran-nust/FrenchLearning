@@ -14,6 +14,7 @@ Working in this phase (the same scope as the Android app):
 - Signed-in strip with tier (Free / Premium / Super)
 - Four colour themes (same tokens as the web app)
 - Home screen with "Day N complete" progress across all five sections
+- **Day-plan PDF download (premium and super)**: the same as the Android app; the PDF is saved through the share sheet ("Save to Files"). Premium 1 per rolling 24 hours, super unlimited, free sees a lock note.
 - **Direct lesson links (premium and super)**: Kwiziq and TV5MONDE chips open the real lesson page when one is known, with extra per-day links, the same as the web app and the Android app; free accounts keep the Google searches.
 - **Grammar chapter PDFs (premium and super)**: the same as the Android app, read in Apple's PDF viewer (pinch to zoom). Free accounts see a lock note.
 - **Anki flashcards** with French pronunciation: today's new words (French to English), then review words from earlier days in a random direction (how many grows from about 5 to about 40 as days are completed; words you flag as hard come up five times as often), show answer, previous/next, the day's finish and streak, "Practice this day again" bonus rounds that don't change progress, reset. Audio uses the same text-to-speech function as the web app. Progress, hard words and card statistics are saved in the web app's exact format, so they are shared.
@@ -22,7 +23,7 @@ Working in this phase (the same scope as the Android app):
 - A read-only day viewer for jumping to any day (with a button to practice that day's flashcards)
 - Unit tests for the plan data, progress and streak logic
 
-Not built yet: day-plan PDF download, admin page.
+Not built yet: the admin page.
 
 ## Run it (on a Mac)
 ```bash
