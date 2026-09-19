@@ -23,6 +23,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 enum class Tier(val label: String) {
     FREE("Free"), PREMIUM("Premium"), SUPER("Super");
 
+    /** True if this tier is [minimum] or higher (free < premium < super). */
+    fun atLeast(minimum: Tier): Boolean = ordinal >= minimum.ordinal
+
     companion object {
         /** Anything unknown counts as free (fail closed). */
         fun from(value: String?): Tier = entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: FREE
@@ -36,6 +39,14 @@ sealed interface AppRead {
     data class Found(val text: String) : AppRead
     data object Empty : AppRead
     data object Failed : AppRead
+}
+
+/** How a request for grammar chapter pages ended. */
+sealed interface GrammarPagesResult {
+    class Pdf(val bytes: ByteArray) : GrammarPagesResult
+    /** The account is not premium (or super). */
+    data object TierRequired : GrammarPagesResult
+    data object Failed : GrammarPagesResult
 }
 
 class ApiException(message: String, val status: Int = 0) : Exception(message)
@@ -242,4 +253,36 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
         val audio = (parse(reply.body) as? JsonObject)?.get("audioContent")?.jsonPrimitive?.contentOrNull ?: return null
         return try { java.util.Base64.getDecoder().decode(audio) } catch (e: IllegalArgumentException) { null }
     }
+
+    /** A small PDF of just the given chapters of a grammar book (premium and super only, enforced by the function). */
+    suspend fun grammarPages(session: Session, book: String, chapters: List<Int>): GrammarPagesResult =
+        withContext(Dispatchers.IO) {
+            val body = buildJsonObject {
+                put("book", book)
+                put("chapters", JsonArray(chapters.map { JsonPrimitive(it) }))
+            }
+            val request = Request.Builder()
+                .url(baseUrl + "/functions/v1/grammar-pages")
+                .header("apikey", key)
+                .header("Authorization", "Bearer " + session.accessToken)
+                .post(body.toString().toRequestBody(jsonType))
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    when {
+                        response.code == 401 -> throw ApiException("Session expired.", 401)
+                        response.code == 403 -> GrammarPagesResult.TierRequired
+                        !response.isSuccessful -> GrammarPagesResult.Failed
+                        else -> {
+                            val bytes = response.body?.bytes() ?: ByteArray(0)
+                            // a real PDF starts with "%PDF"
+                            if (bytes.size > 4 && bytes[0] == '%'.code.toByte() && bytes[1] == 'P'.code.toByte()) GrammarPagesResult.Pdf(bytes)
+                            else GrammarPagesResult.Failed
+                        }
+                    }
+                }
+            } catch (e: java.io.IOException) {
+                GrammarPagesResult.Failed
+            }
+        }
 }

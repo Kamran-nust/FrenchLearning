@@ -27,6 +27,12 @@ struct CompletionInfo: Equatable {
     let streak: Int
 }
 
+/// A grammar PDF being read in the app.
+struct PdfDocumentInfo: Equatable {
+    let label: String
+    let data: Data
+}
+
 struct StudyState: Equatable {
     var section: PlanSection
     var loading = true
@@ -39,6 +45,10 @@ struct StudyState: Equatable {
     var phase: StudyPhase = .day
     var completion: CompletionInfo?
     var confirmingReset = false
+    /// Grammar chapter PDFs: a request is running / it failed / one is open for reading.
+    var pdfLoading = false
+    var pdfError: String?
+    var pdfViewer: PdfDocumentInfo?
 }
 
 enum SaveState: Equatable {
@@ -873,5 +883,41 @@ final class AppModel: ObservableObject {
     private func stopSpeech() {
         speakTask?.cancel()
         speech.stop()
+    }
+
+    // MARK: Grammar chapter PDFs (premium and super)
+
+    /// Asks for the pages of one book's chapters and opens them for reading. The server enforces the tier too.
+    func openGrammarPdf(_ group: BookChapters) {
+        guard let s = study, !s.pdfLoading else { return }
+        var loading = s
+        loading.pdfLoading = true
+        loading.pdfError = nil
+        study = loading
+        Task { [self] in
+            let result: GrammarPagesResult
+            do {
+                result = try await authed { try await self.api.grammarPages($0, book: group.book, chapters: group.chapters) }
+            } catch {
+                result = .failed
+            }
+            guard var current = study else { return }
+            current.pdfLoading = false
+            switch result {
+            case .pdf(let data):
+                current.pdfViewer = PdfDocumentInfo(label: group.label, data: data)
+            case .tierRequired:
+                current.pdfError = "Grammar chapter PDFs are a Premium feature."
+            case .failed:
+                current.pdfError = "Couldn't load those pages. Try again."
+            }
+            study = current
+        }
+    }
+
+    func closeGrammarPdf() {
+        guard var s = study else { return }
+        s.pdfViewer = nil
+        study = s
     }
 }

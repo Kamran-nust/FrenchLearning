@@ -9,7 +9,9 @@ struct StudyView: View {
 
     var body: some View {
         let c = model.colors
-        if study.loading {
+        if let viewer = study.pdfViewer {
+            PdfReaderView(info: viewer) { model.closeGrammarPdf() }
+        } else if study.loading {
             Text("Loading your session…").font(.system(size: 14)).foregroundColor(c.muted)
         } else {
             ScrollView {
@@ -156,6 +158,34 @@ struct StudyView: View {
             }
             .font(.system(size: 14))
             .padding(.top, 14)
+
+            // Grammar: the book chapters for the day, as PDF pages (premium and super)
+            if study.section == .grammar && !viewed.chapters.isEmpty {
+                Group {
+                    if model.tier.atLeast(.premium) {
+                        VStack(spacing: 8) {
+                            ForEach(viewed.chapters, id: \.book) { group in
+                                Button { model.openGrammarPdf(group) } label: {
+                                    Text(study.pdfLoading ? "Loading pages…" : "📖 Open " + group.label)
+                                        .font(.system(size: 12, weight: .medium)).foregroundColor(c.link)
+                                        .frame(maxWidth: .infinity).padding(.vertical, 11)
+                                        .background(c.accentSoft).clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                                .disabled(study.pdfLoading)
+                            }
+                            if let error = study.pdfError {
+                                Text(error).font(.system(size: 12)).foregroundColor(c.danger).multilineTextAlignment(.center)
+                            }
+                        }
+                    } else {
+                        Text("🔒 Grammar chapter PDFs are a Premium feature")
+                            .font(.system(size: 12)).foregroundColor(c.muted)
+                            .frame(maxWidth: .infinity).padding(.vertical, 11)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(c.border))
+                    }
+                }
+                .padding(.top, 12)
+            }
 
             if pending {
                 primaryButton("Mark day complete", c) { model.completeDay() }.padding(.top, 8)

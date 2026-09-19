@@ -24,10 +24,36 @@ data class AnkiDay(val d: Int, val w: Int, val c: List<AnkiCard>)
 
 /** Grammar, Kwiziq, TV5 and Writing all share this shape (`l` is TV5's level badge). */
 @Serializable
-data class TextDay(val d: Int, val w: Int, val x: String, val l: String? = null)
+data class TextDay(val d: Int, val w: Int, val x: String, val l: String? = null, val e: List<GrammarEntryRaw> = emptyList())
 
-/** What one day of one section shows. */
-data class DayContent(val day: Int, val week: Int, val badge: String?, val text: String, val cards: List<AnkiCard>)
+/** One book reference on a Grammar day: which book, which chapters, and the chapter titles. */
+@Serializable
+data class GrammarEntryRaw(val b: String, val c: List<Int> = emptyList(), val t: String? = null)
+
+/** The chapters to open in one grammar book for a day (a day can name several books). */
+data class BookChapters(val book: String, val chapters: List<Int>) {
+    /** "A1-A2 ch. 1, 4" */
+    val label: String get() = "$book ch. " + chapters.joinToString(", ")
+}
+
+object GrammarBooks {
+    /** Groups a day's entries by book, keeping the order books first appear and every chapter in order (same as the web app). */
+    fun group(entries: List<GrammarEntryRaw>): List<BookChapters> {
+        val order = LinkedHashMap<String, MutableList<Int>>()
+        for (e in entries) order.getOrPut(e.b) { mutableListOf() }.addAll(e.c)
+        return order.map { (book, chapters) -> BookChapters(book, chapters) }
+    }
+}
+
+/** What one day of one section shows. `chapters` is only used by Grammar. */
+data class DayContent(
+    val day: Int,
+    val week: Int,
+    val badge: String?,
+    val text: String,
+    val cards: List<AnkiCard>,
+    val chapters: List<BookChapters> = emptyList(),
+)
 
 private val json = Json { ignoreUnknownKeys = true }
 
@@ -39,7 +65,7 @@ object PlanParser {
 
     fun textDays(text: String): List<DayContent> =
         json.decodeFromString(ListSerializer(TextDay.serializer()), text)
-            .map { DayContent(it.d, it.w, it.l, it.x, emptyList()) }
+            .map { DayContent(it.d, it.w, it.l, it.x, emptyList(), GrammarBooks.group(it.e)) }
 }
 
 /** Loads the plan JSON bundled in the app's assets, once per section. */

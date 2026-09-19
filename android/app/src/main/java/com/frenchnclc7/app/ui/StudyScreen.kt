@@ -33,6 +33,7 @@ import com.frenchnclc7.app.StudyPhase
 import com.frenchnclc7.app.StudyState
 import com.frenchnclc7.app.data.LessonChips
 import com.frenchnclc7.app.data.PlanSection
+import com.frenchnclc7.app.data.Tier
 import com.frenchnclc7.app.data.TOTAL_DAYS
 
 /**
@@ -40,9 +41,15 @@ import com.frenchnclc7.app.data.TOTAL_DAYS
  * complete, keep a streak. Progress is saved to the same place as the web app.
  */
 @Composable
-fun StudyScreen(study: StudyState, vm: AppViewModel) {
+fun StudyScreen(study: StudyState, tier: Tier, vm: AppViewModel) {
     val c = LocalColors.current
-    BackHandler { vm.home() }
+    // Back closes an open PDF first, then leaves the section.
+    BackHandler { if (study.pdfViewer != null) vm.closeGrammarPdf() else vm.home() }
+
+    study.pdfViewer?.let { viewer ->
+        PdfViewerScreen(viewer) { vm.closeGrammarPdf() }
+        return
+    }
 
     if (study.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -120,7 +127,7 @@ fun StudyScreen(study: StudyState, vm: AppViewModel) {
             StudyPhase.DAY -> if (viewed == null) {
                 Text("Nothing to show.", color = c.muted, fontSize = 14.sp, modifier = Modifier.padding(24.dp))
             } else {
-                DayCard(study, section, viewed, vm)
+                DayCard(study, section, viewed, tier, vm)
             }
         }
 
@@ -129,7 +136,7 @@ fun StudyScreen(study: StudyState, vm: AppViewModel) {
 }
 
 @Composable
-private fun DayCard(study: StudyState, section: PlanSection, viewed: com.frenchnclc7.app.data.DayContent, vm: AppViewModel) {
+private fun DayCard(study: StudyState, section: PlanSection, viewed: com.frenchnclc7.app.data.DayContent, tier: Tier, vm: AppViewModel) {
     val c = LocalColors.current
     val uri = LocalUriHandler.current
     val chips = LessonChips.chips(section, viewed)
@@ -182,6 +189,29 @@ private fun DayCard(study: StudyState, section: PlanSection, viewed: com.frenchn
                 "Next ›", color = if (next) c.link else c.muted, fontSize = 14.sp, textAlign = TextAlign.End,
                 modifier = Modifier.weight(1f).clickable(enabled = next) { vm.studyMove(1) }.padding(8.dp),
             )
+        }
+
+        // Grammar: the book chapters for the day, as PDF pages (premium and super)
+        if (section == PlanSection.GRAMMAR && viewed.chapters.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            if (tier.atLeast(Tier.PREMIUM)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    viewed.chapters.forEach { group ->
+                        Text(
+                            if (study.pdfLoading) "Loading pages…" else "📖 Open " + group.label,
+                            color = c.link, fontSize = 12.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.accentSoft)
+                                .clickable(enabled = !study.pdfLoading) { vm.openGrammarPdf(group) }.padding(vertical = 11.dp),
+                        )
+                    }
+                    study.pdfError?.let { Text(it, color = c.danger, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+                }
+            } else {
+                Text(
+                    "🔒 Grammar chapter PDFs are a Premium feature", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(BorderStroke(1.dp, c.border), RoundedCornerShape(12.dp)).padding(vertical = 11.dp),
+                )
+            }
         }
 
         if (pending) {

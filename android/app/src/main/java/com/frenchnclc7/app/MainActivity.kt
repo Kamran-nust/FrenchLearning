@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
                         }
                         Screen.Auth -> AuthScreen(state, vm)
                         Screen.Home -> HomeScreen(state, vm)
-                        Screen.Study -> state.study?.let { StudyScreen(it, vm) }
+                        Screen.Study -> state.study?.let { StudyScreen(it, state.tier, vm) }
                         Screen.Writing -> state.writing?.let { WritingScreen(it, vm) }
                         Screen.Anki -> state.anki?.let { AnkiScreen(it, vm) }
                         is Screen.Day -> {

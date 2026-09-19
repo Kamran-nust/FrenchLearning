@@ -9,6 +9,8 @@ import com.frenchnclc7.app.data.ApiException
 import com.frenchnclc7.app.data.CardStat
 import com.frenchnclc7.app.data.SpeechPlayer
 import com.frenchnclc7.app.data.AppRead
+import com.frenchnclc7.app.data.BookChapters
+import com.frenchnclc7.app.data.GrammarPagesResult
 import com.frenchnclc7.app.data.FeedbackOutcome
 import com.frenchnclc7.app.data.FeedbackQuota
 import com.frenchnclc7.app.data.LocalStore
@@ -24,7 +26,10 @@ import com.frenchnclc7.app.data.Tier
 import com.frenchnclc7.app.data.WritingEntry
 import com.frenchnclc7.app.data.WritingLogic
 import com.frenchnclc7.app.ui.Themes
+import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,6 +57,9 @@ enum class StudyPhase { DAY, COMPLETE, FINISHED }
 /** The day just completed, for the "Day N done" screen. */
 data class CompletionInfo(val day: Int, val remaining: Int, val streak: Int)
 
+/** A grammar PDF being read in the app. */
+data class PdfViewer(val label: String, val path: String)
+
 data class StudyState(
     val section: PlanSection,
     val loading: Boolean = true,
@@ -64,6 +72,10 @@ data class StudyState(
     val phase: StudyPhase = StudyPhase.DAY,
     val completion: CompletionInfo? = null,
     val confirmingReset: Boolean = false,
+    /** Grammar chapter PDFs: a request is running / it failed / one is open for reading. */
+    val pdfLoading: Boolean = false,
+    val pdfError: String? = null,
+    val pdfViewer: PdfViewer? = null,
 )
 
 enum class SaveState { IDLE, SAVING, SAVED }
@@ -131,6 +143,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val store = LocalStore(app)
     val plan = PlanRepository(app)
     private val speech = SpeechPlayer(app)
+    private val cacheDir = app.cacheDir
 
     private val _state = MutableStateFlow(UiState(themeId = store.themeId))
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -737,4 +750,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         stopSpeech()
         super.onCleared()
     }
+
+    // ---- Grammar chapter PDFs (premium and super) ----------------------------------------------------
+
+    /** Asks for the pages of one book's chapters and opens them for reading. The server enforces the tier too. */
+    fun openGrammarPdf(group: BookChapters) {
+        val study = _state.value.study ?: return
+        if (study.pdfLoading) return
+        editStudy { it.copy(pdfLoading = true, pdfError = null) }
+        viewModelScope.launch {
+            val result = try {
+                authed { api.grammarPages(it, group.book, group.chapters) }
+            } catch (e: ApiException) {
+                GrammarPagesResult.Failed
+            }
+            when (result) {
+                is GrammarPagesResult.Pdf -> {
+                    val file = File(cacheDir, "grammar-pages.pdf")
+                    withContext(Dispatchers.IO) { file.writeBytes(result.bytes) }
+                    editStudy { it.copy(pdfLoading = false, pdfViewer = PdfViewer(group.label, file.path)) }
+                }
+                GrammarPagesResult.TierRequired ->
+                    editStudy { it.copy(pdfLoading = false, pdfError = "Grammar chapter PDFs are a Premium feature.") }
+                GrammarPagesResult.Failed ->
+                    editStudy { it.copy(pdfLoading = false, pdfError = "Couldn't load those pages. Try again.") }
+            }
+        }
+    }
+
+    fun closeGrammarPdf() = editStudy { it.copy(pdfViewer = null) }
 }

@@ -13,6 +13,17 @@ enum Tier: String {
         }
     }
 
+    private var rank: Int {
+        switch self {
+        case .free: return 0
+        case .premium: return 1
+        case .superUser: return 2
+        }
+    }
+
+    /// True if this tier is `minimum` or higher (free < premium < super).
+    func atLeast(_ minimum: Tier) -> Bool { rank >= minimum.rank }
+
     /// Anything unknown counts as free (fail closed).
     static func from(_ value: String?) -> Tier {
         guard let value = value?.lowercased() else { return .free }
@@ -24,6 +35,14 @@ enum Tier: String {
 enum AppRead {
     case found(String)
     case empty
+    case failed
+}
+
+/// How a request for grammar chapter pages ended.
+enum GrammarPagesResult: Equatable {
+    case pdf(Data)
+    /// The account is not premium (or super).
+    case tierRequired
     case failed
 }
 
@@ -238,5 +257,16 @@ struct SupabaseAPI {
               let obj = (try? JSONSerialization.jsonObject(with: reply.data)) as? [String: Any],
               let audio = obj["audioContent"] as? String else { return nil }
         return Data(base64Encoded: audio)
+    }
+
+    /// A small PDF of just the given chapters of a grammar book (premium and super only, enforced by the function).
+    func grammarPages(_ session: Session, book: String, chapters: [Int]) async throws -> GrammarPagesResult {
+        guard let reply = try? await call("POST", "/functions/v1/grammar-pages", token: session.accessToken,
+                                          body: ["book": book, "chapters": chapters]) else { return .failed }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        if reply.status == 403 { return .tierRequired }
+        // a real PDF starts with "%PDF"
+        guard (200...299).contains(reply.status), reply.data.starts(with: Data("%PDF".utf8)) else { return .failed }
+        return .pdf(reply.data)
     }
 }
