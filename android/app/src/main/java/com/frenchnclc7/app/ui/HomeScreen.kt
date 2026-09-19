@@ -109,7 +109,7 @@ fun HomeScreen(state: UiState, vm: AppViewModel) {
                 Row(
                     Modifier.fillMaxWidth().padding(bottom = 10.dp).clip(RoundedCornerShape(16.dp)).background(c.card)
                         .border(BorderStroke(1.dp, c.accent), RoundedCornerShape(16.dp))
-                        .clickable { vm.open(section, 1) }.padding(16.dp),
+                        .clickable { vm.open(section) }.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {

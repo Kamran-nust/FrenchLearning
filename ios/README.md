@@ -14,10 +14,11 @@ Working in this phase (the same scope as the Android app):
 - Signed-in strip with tier (Free / Premium / Super)
 - Four colour themes (same tokens as the web app)
 - Home screen with "Day N complete" progress across all five sections
-- Read-only day viewer for all five sections for any of the 301 days
-- Unit tests for the plan data and progress logic
+- Grammar, Kwiziq, TV5MONDE and Writing: read the day, **Mark day complete**, streaks, "Day N done" and "All 301 days done" screens, reset progress (same behaviour and same saved format as the web app and the Android app)
+- Read-only day viewer for Anki (flashcard sessions not built yet) and for jumping to any day
+- Unit tests for the plan data, progress and streak logic
 
-Not built yet: Anki sessions, "mark day complete" + streaks, Writing editor + AI feedback, Grammar PDFs,
+Not built yet: Anki sessions, Writing editor + AI feedback, Grammar PDFs,
 direct lesson links, day-plan PDF download, admin page, text-to-speech.
 
 ## Run it (on a Mac)

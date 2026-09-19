@@ -20,6 +20,13 @@ enum Tier: String {
     }
 }
 
+/// What reading one saved value found. Only `.empty` is safe to treat as "start fresh".
+enum AppRead {
+    case found(String)
+    case empty
+    case failed
+}
+
 struct Session: Equatable {
     let accessToken: String
     let refreshToken: String
@@ -44,12 +51,14 @@ struct SupabaseAPI {
     private let baseURL = Config.supabaseURL
     private let key = Config.supabaseKey
 
-    private func call(_ method: String, _ path: String, token: String?, body: [String: Any]? = nil) async throws -> (status: Int, data: Data) {
+    private func call(_ method: String, _ path: String, token: String?, body: [String: Any]? = nil,
+                      headers: [String: String] = [:]) async throws -> (status: Int, data: Data) {
         guard let url = URL(string: baseURL + path) else { throw APIError("Bad request.") }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(key, forHTTPHeaderField: "apikey")
         request.setValue("Bearer " + (token ?? key), forHTTPHeaderField: "Authorization")
+        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
         if method != "GET" {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body ?? [:])
@@ -176,5 +185,32 @@ struct SupabaseAPI {
             }
         }
         return out
+    }
+
+    /// Reads one saved value, telling "nothing saved yet" apart from "couldn't read it".
+    func readAppValue(_ session: Session, key: String) async throws -> AppRead {
+        guard let reply = try? await call("GET", "/rest/v1/app_state?select=value&user_id=eq.(session.userId)&key=eq.(key)",
+                                          token: session.accessToken) else { return .failed }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status), let rows = array(reply.data) else { return .failed }
+        guard let row = rows.first, let value = row["value"], !(value is NSNull) else { return .empty }
+        if let text = value as? String { return .found(text) }
+        if let data = try? JSONSerialization.data(withJSONObject: value), let text = String(data: data, encoding: .utf8) {
+            return .found(text)
+        }
+        return .failed
+    }
+
+    /// Saves one value (the JSON text) for this user, replacing what was there. Throws if it couldn't be saved.
+    func saveAppState(_ session: Session, key: String, jsonText: String) async throws {
+        let reply = try await call(
+            "POST", "/rest/v1/app_state?on_conflict=user_id,key", token: session.accessToken,
+            body: ["user_id": session.userId, "key": key, "value": jsonText],   // the web app stores the progress JSON as a string
+            headers: ["Prefer": "resolution=merge-duplicates,return=minimal"]
+        )
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else {
+            throw APIError(message(reply.data, fallback: "Couldn't save."), status: reply.status)
+        }
     }
 }

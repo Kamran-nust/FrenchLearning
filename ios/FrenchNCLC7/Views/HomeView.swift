@@ -71,7 +71,7 @@ struct HomeView: View {
 
                     VStack(spacing: 10) {
                         ForEach(PlanSection.allCases) { section in
-                            Button { model.open(section, day: 1) } label: {
+                            Button { model.open(section) } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(section.title).font(.system(size: 15, weight: .medium)).foregroundColor(c.text)

@@ -26,6 +26,10 @@ struct RootView: View {
                 AuthView()
             case .home:
                 HomeView()
+            case .study:
+                if let study = model.study {
+                    StudyView(study: study)
+                }
             case .day(let section, let day):
                 DayView(section: section, day: day)
             }

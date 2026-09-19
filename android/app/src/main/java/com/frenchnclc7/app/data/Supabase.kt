@@ -31,6 +31,13 @@ enum class Tier(val label: String) {
 
 data class Session(val accessToken: String, val refreshToken: String, val userId: String, val email: String)
 
+/** What reading one saved value found. Only [Empty] is safe to treat as "start fresh". */
+sealed interface AppRead {
+    data class Found(val text: String) : AppRead
+    data object Empty : AppRead
+    data object Failed : AppRead
+}
+
 class ApiException(message: String, val status: Int = 0) : Exception(message)
 
 /**
@@ -45,12 +52,19 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
 
     private data class Reply(val status: Int, val body: String)
 
-    private suspend fun call(method: String, path: String, token: String?, body: JsonObject? = null): Reply =
+    private suspend fun call(
+        method: String,
+        path: String,
+        token: String?,
+        body: JsonObject? = null,
+        headers: Map<String, String> = emptyMap(),
+    ): Reply =
         withContext(Dispatchers.IO) {
             val builder = Request.Builder()
                 .url(baseUrl + path)
                 .header("apikey", key)
                 .header("Authorization", "Bearer " + (token ?: key))
+            headers.forEach { (k, v) -> builder.header(k, v) }
             when (method) {
                 "GET" -> builder.get()
                 else -> builder.method(method, (body?.toString() ?: "{}").toRequestBody(jsonType))
@@ -171,5 +185,31 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
             if (v is JsonPrimitive && v.isString) out[k] = v.content else if (v != null) out[k] = v.toString()
         }
         return out
+    }
+
+    /** Reads one saved value, telling "nothing saved yet" apart from "couldn't read it". */
+    suspend fun readAppValue(session: Session, key: String): AppRead {
+        val reply = call("GET", "/rest/v1/app_state?select=value&user_id=eq.${session.userId}&key=eq.$key", session.accessToken)
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) return AppRead.Failed
+        val rows = parse(reply.body) as? JsonArray ?: return AppRead.Failed
+        val value = rows.firstOrNull()?.jsonObject?.get("value") ?: return AppRead.Empty
+        if (value is kotlinx.serialization.json.JsonNull) return AppRead.Empty
+        return AppRead.Found(if (value is JsonPrimitive && value.isString) value.content else value.toString())
+    }
+
+    /** Saves one value (the JSON text) for this user, replacing what was there. Throws if it couldn't be saved. */
+    suspend fun saveAppState(session: Session, key: String, jsonText: String) {
+        val reply = call(
+            "POST", "/rest/v1/app_state?on_conflict=user_id,key", session.accessToken,
+            buildJsonObject {
+                put("user_id", session.userId)
+                put("key", key)
+                put("value", jsonText) // the web app stores the progress JSON as a string in the jsonb column
+            },
+            mapOf("Prefer" to "resolution=merge-duplicates,return=minimal"),
+        )
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) throw ApiException(message(reply, "Couldn't save."), reply.status)
     }
 }
