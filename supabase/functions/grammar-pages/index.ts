@@ -60,7 +60,8 @@ Deno.serve(async (req) => {
       .download(bookInfo.file);
 
     if (downloadError || !fileBlob) {
-      return new Response(JSON.stringify({ error: "Could not load source PDF", detail: downloadError?.message }), {
+      console.error("grammar-pages: could not load source PDF:", downloadError?.message);
+      return new Response(JSON.stringify({ error: "Could not load source PDF" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -103,7 +104,8 @@ Deno.serve(async (req) => {
       },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: "Unexpected server error", detail: String(err) }), {
+    console.error("grammar-pages: unexpected error:", err);
+    return new Response(JSON.stringify({ error: "Unexpected server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

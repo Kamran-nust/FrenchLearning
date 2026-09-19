@@ -83,7 +83,8 @@ Deno.serve(async (req) => {
     if (!geminiResponse.ok) {
       const errText = await geminiResponse.text();
       await refund();
-      return json({ error: "Gemini request failed", detail: errText }, 502);
+      console.error("writing-feedback: Gemini request failed:", errText);
+      return json({ error: "Gemini request failed" }, 502);
     }
 
     const data = await geminiResponse.json();
@@ -101,7 +102,8 @@ Deno.serve(async (req) => {
     return json({ feedback, quota: after ?? quota.status });
   } catch (err) {
     await refund();
-    return json({ error: "Unexpected server error", detail: String(err) }, 500);
+    console.error("writing-feedback: unexpected error:", err);
+    return json({ error: "Unexpected server error" }, 500);
   }
 
   // A failed AI call must not use up the person's daily allowance.

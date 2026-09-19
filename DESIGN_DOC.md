@@ -637,3 +637,32 @@ returns a ticket. Any download counts, including re-downloading the same day.
 If PDF creation fails, `refund_pdf_download` hands the download back (only the
 caller's own, within 2 minutes). Premium users see a plain button; only after
 using it does it grey out with "Available again in Xh Ym".
+
+### 9.4 Engineering practices (added after the best-practices review)
+
+- **Tests.** `cd frontend && npm test` runs 67 unit/component tests (vitest):
+  tier rules, theme definitions and contrast, day/streak logic, plan-data
+  integrity (301 days per module, week numbers, unique card ids, levels cover
+  all days), the AI-feedback error mapping, PDF text safety, the error
+  boundary, and the "failed load must never be overwritten" behaviour of the
+  modules. Database limits (AI feedback + PDF downloads) are tested by
+  `supabase/tests/limits_test.sql` (run with
+  `npx supabase db query --linked -f supabase/tests/limits_test.sql`; it always
+  rolls back and ends with "ALL DATABASE TESTS PASSED" when healthy).
+- **Lint / format / CI.** ESLint (`npm run lint`) and Prettier
+  (`npm run format`, `npm run format:check`); `.github/workflows/ci.yml` runs
+  lint, format check, tests and a production build on every push. Remaining
+  lint warnings are hook-dependency notes, not errors.
+- **Saved-progress safety.** Reading saved progress distinguishes "nothing saved
+  yet" from "couldn't read it" (`readSaved` in `shared/storage.js`). If a read
+  fails, the module shows a notice and switches saving off for that session, so
+  a network blip can never overwrite real progress with an empty Day 1.
+- **Error boundaries.** `ErrorBoundary.jsx` wraps sign-in and the app; a
+  crashing screen shows "Something went wrong" (Try again / Reload) and the top
+  strip stays usable.
+- **Sign-in hardening.** The `sign-in` function records failures
+  (`signin_failures`, migration `0009`) and refuses further attempts with 429
+  after 5 failures for one name from one place, or 30 from one place, within 15
+  minutes; a correct sign-in clears the count. Functions no longer return
+  internal error detail to the browser (it is logged server-side instead), and
+  malformed requests get 400.

@@ -70,7 +70,8 @@ Deno.serve(async (req) => {
       const tokenResponse = await client.getAccessToken();
       accessToken = tokenResponse?.token;
     } catch (authErr) {
-      return new Response(JSON.stringify({ error: "Google auth failed", detail: String(authErr) }), {
+      console.error("text-to-speech: Google auth failed:", authErr);
+      return new Response(JSON.stringify({ error: "Google auth failed" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -97,7 +98,8 @@ Deno.serve(async (req) => {
 
     if (!googleResponse.ok) {
       const errText = await googleResponse.text();
-      return new Response(JSON.stringify({ error: "Google TTS request failed", detail: errText }), {
+      console.error("text-to-speech: Google TTS request failed:", errText);
+      return new Response(JSON.stringify({ error: "Google TTS request failed" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -109,7 +111,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: "Unexpected server error", detail: String(err) }), {
+    console.error("text-to-speech: unexpected error:", err);
+    return new Response(JSON.stringify({ error: "Unexpected server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
