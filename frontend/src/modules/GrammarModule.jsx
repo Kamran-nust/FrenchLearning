@@ -1,25 +1,18 @@
 import { useState, useEffect } from "react";
 import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, BookOpen, Lock } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
-import { todayKey, waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
+import { waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
 import StorageNotice from "../shared/StorageNotice.jsx";
+import { FRESH_PROGRESS, progressAfterCompleting } from "../shared/progress";
 import { GRAMMAR_DAYS } from "../data/grammarDays";
 import { fetchGrammarPages } from "../lib/grammarPages";
 import Gate from "../Gate.jsx";
 
 const GRAMMAR_TOTAL = GRAMMAR_DAYS.length;
 
-const GRAMMAR_FRESH_PROGRESS = {
-  current_day: 1,
-  completed_days: [],
-  last_activity_date: null,
-  streak_count: 0,
-  longest_streak: 0,
-};
-
 export default function GrammarModule({ onBack, startDay }) {
   const [phase, setPhase] = useState("loading");
-  const [progress, setProgress] = useState(GRAMMAR_FRESH_PROGRESS);
+  const [progress, setProgress] = useState(FRESH_PROGRESS);
   const [storageOk, setStorageOk] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -44,7 +37,7 @@ export default function GrammarModule({ onBack, startDay }) {
         ? await diagnoseStorage()
         : { ok: false, message: "window.storage is not present in this environment." };
       if (cancelled) return;
-      const finalProgress = p || GRAMMAR_FRESH_PROGRESS;
+      const finalProgress = p || FRESH_PROGRESS;
       setProgress(finalProgress);
       setStorageOk(diag.ok);
       setLoadFailed(failed);
@@ -116,22 +109,8 @@ export default function GrammarModule({ onBack, startDay }) {
   }
 
   function completeDay() {
-    const todayKeyStr = todayKey();
-    let streak = progress.streak_count;
-    let longest = progress.longest_streak;
-    if (progress.last_activity_date !== todayKeyStr) {
-      const yesterday = new Date(Date.now() - 86400000).toDateString();
-      streak = progress.last_activity_date === yesterday ? streak + 1 : 1;
-      longest = Math.max(longest, streak);
-    }
-    const newCompleted = [...progress.completed_days, viewed.d];
-    const newProgress = {
-      current_day: progress.current_day + 1,
-      completed_days: newCompleted,
-      last_activity_date: todayKeyStr,
-      streak_count: streak,
-      longest_streak: longest,
-    };
+    const { progress: newProgress, streak } = progressAfterCompleting(progress, viewed.d);
+    const newCompleted = newProgress.completed_days;
     setProgress(newProgress);
     persist("grammar-progress", newProgress);
     setCompletionInfo({ day: viewed.d, remaining: GRAMMAR_TOTAL - newCompleted.length, streak });
@@ -148,8 +127,8 @@ export default function GrammarModule({ onBack, startDay }) {
   }
 
   function doReset() {
-    setProgress(GRAMMAR_FRESH_PROGRESS);
-    persist("grammar-progress", GRAMMAR_FRESH_PROGRESS);
+    setProgress(FRESH_PROGRESS);
+    persist("grammar-progress", FRESH_PROGRESS);
     setConfirmingReset(false);
     setViewDay(1);
     setPhase("day");

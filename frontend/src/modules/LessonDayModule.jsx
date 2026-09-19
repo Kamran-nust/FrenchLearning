@@ -1,17 +1,10 @@
 import { useState, useEffect } from "react";
 import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, ExternalLink, BookOpen } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
-import { todayKey, waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
+import { waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
 import StorageNotice from "../shared/StorageNotice.jsx";
+import { FRESH_PROGRESS, progressAfterCompleting } from "../shared/progress";
 import { useLessonLinks } from "../lib/lessonLinks";
-
-const FRESH_PROGRESS = {
-  current_day: 1,
-  completed_days: [],
-  last_activity_date: null,
-  streak_count: 0,
-  longest_streak: 0,
-};
 
 // One screen for the day-by-day lesson-list modules (Kwiziq, TV5MONDE). Each
 // wrapper passes a config describing what differs:
@@ -86,22 +79,8 @@ export default function LessonDayModule({ config, onBack, startDay }) {
   }
 
   function completeDay() {
-    const todayKeyStr = todayKey();
-    let streak = progress.streak_count;
-    let longest = progress.longest_streak;
-    if (progress.last_activity_date !== todayKeyStr) {
-      const yesterday = new Date(Date.now() - 86400000).toDateString();
-      streak = progress.last_activity_date === yesterday ? streak + 1 : 1;
-      longest = Math.max(longest, streak);
-    }
-    const newCompleted = [...progress.completed_days, viewed.d];
-    const newProgress = {
-      current_day: progress.current_day + 1,
-      completed_days: newCompleted,
-      last_activity_date: todayKeyStr,
-      streak_count: streak,
-      longest_streak: longest,
-    };
+    const { progress: newProgress, streak } = progressAfterCompleting(progress, viewed.d);
+    const newCompleted = newProgress.completed_days;
     setProgress(newProgress);
     persist(storageKey, newProgress);
     setCompletionInfo({ day: viewed.d, remaining: total - newCompleted.length, streak });

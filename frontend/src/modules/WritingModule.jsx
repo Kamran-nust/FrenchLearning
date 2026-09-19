@@ -1,20 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Loader2, Sparkles } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
-import { todayKey, waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
+import { waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
 import StorageNotice from "../shared/StorageNotice.jsx";
+import { FRESH_PROGRESS, progressAfterCompleting } from "../shared/progress";
 import { WRITING_DAYS } from "../data/writingDays";
 import { fetchWritingFeedback, fetchFeedbackQuota } from "../lib/writingFeedback";
 
 const WRITING_TOTAL = WRITING_DAYS.length;
-
-const WRITING_FRESH_PROGRESS = {
-  current_day: 1,
-  completed_days: [],
-  last_activity_date: null,
-  streak_count: 0,
-  longest_streak: 0,
-};
 
 function formatWait(ms) {
   const totalMinutes = Math.max(1, Math.ceil(ms / 60000));
@@ -36,7 +29,7 @@ function countWords(text) {
 
 export default function WritingModule({ onBack, startDay }) {
   const [phase, setPhase] = useState("loading");
-  const [progress, setProgress] = useState(WRITING_FRESH_PROGRESS);
+  const [progress, setProgress] = useState(FRESH_PROGRESS);
   const [entries, setEntries] = useState({});
   const [storageOk, setStorageOk] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -76,7 +69,7 @@ export default function WritingModule({ onBack, startDay }) {
         ? await diagnoseStorage()
         : { ok: false, message: "window.storage is not present in this environment." };
       if (cancelled) return;
-      const finalProgress = p || WRITING_FRESH_PROGRESS;
+      const finalProgress = p || FRESH_PROGRESS;
       setProgress(finalProgress);
       setEntries(ent);
       setStorageOk(diag.ok);
@@ -185,22 +178,8 @@ export default function WritingModule({ onBack, startDay }) {
       saveTimer.current = null;
       persist("writing-entries", entriesRef.current);
     }
-    const todayKeyStr = todayKey();
-    let streak = progress.streak_count;
-    let longest = progress.longest_streak;
-    if (progress.last_activity_date !== todayKeyStr) {
-      const yesterday = new Date(Date.now() - 86400000).toDateString();
-      streak = progress.last_activity_date === yesterday ? streak + 1 : 1;
-      longest = Math.max(longest, streak);
-    }
-    const newCompleted = [...progress.completed_days, viewed.d];
-    const newProgress = {
-      current_day: progress.current_day + 1,
-      completed_days: newCompleted,
-      last_activity_date: todayKeyStr,
-      streak_count: streak,
-      longest_streak: longest,
-    };
+    const { progress: newProgress, streak } = progressAfterCompleting(progress, viewed.d);
+    const newCompleted = newProgress.completed_days;
     setProgress(newProgress);
     persist("writing-progress", newProgress);
     setCompletionInfo({ day: viewed.d, remaining: WRITING_TOTAL - newCompleted.length, streak });
@@ -217,10 +196,10 @@ export default function WritingModule({ onBack, startDay }) {
   }
 
   function doReset() {
-    setProgress(WRITING_FRESH_PROGRESS);
+    setProgress(FRESH_PROGRESS);
     setEntries({});
     entriesRef.current = {};
-    persist("writing-progress", WRITING_FRESH_PROGRESS);
+    persist("writing-progress", FRESH_PROGRESS);
     persist("writing-entries", {});
     setConfirmingReset(false);
     switchToDay(1);
