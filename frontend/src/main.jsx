@@ -12,5 +12,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <AuthGate>
       <App />
     </AuthGate>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

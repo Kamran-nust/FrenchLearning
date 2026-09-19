@@ -126,9 +126,7 @@ export default function AuthGate({ children }) {
     return (
       <div style={wrap}>
         <div style={card}>
-          <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 6, color: COLORS.text }}>
-            Set a new password
-          </div>
+          <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 6, color: COLORS.text }}>Set a new password</div>
           <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 20 }}>
             {newPasswordSaved
               ? "Password updated."

@@ -54,10 +54,7 @@ export default function App() {
   }
   if (screen === "day-jump") {
     return (
-      <DayJumpScreen
-        onBack={() => setScreen("home")}
-        onSelectSection={(id, day) => openSection(id, "day-jump", day)}
-      />
+      <DayJumpScreen onBack={() => setScreen("home")} onSelectSection={(id, day) => openSection(id, "day-jump", day)} />
     );
   }
   if (screen === "admin") {

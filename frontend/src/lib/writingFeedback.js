@@ -20,7 +20,8 @@ export async function fetchWritingFeedback(task, draft) {
   if (error) {
     const res = error.context;
     const body = res && typeof res.json === "function" ? await res.json().catch(() => ({})) : {};
-    if (res && res.status === 429 && body.code === "limit_reached") throw new FeedbackError("limit_reached", body.status);
+    if (res && res.status === 429 && body.code === "limit_reached")
+      throw new FeedbackError("limit_reached", body.status);
     if (res && res.status === 502) throw new FeedbackError("busy");
     throw new FeedbackError("other");
   }

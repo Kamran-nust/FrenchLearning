@@ -60,6 +60,8 @@ describe("navigation config", () => {
   });
   it("has the five sections with unique ids", () => {
     expect(new Set(SECTIONS.map((s) => s.id)).size).toBe(SECTIONS.length);
-    expect(SECTIONS.map((s) => s.id)).toEqual(expect.arrayContaining(["anki", "grammar", "kwiziq", "tv5monde", "writing"]));
+    expect(SECTIONS.map((s) => s.id)).toEqual(
+      expect.arrayContaining(["anki", "grammar", "kwiziq", "tv5monde", "writing"]),
+    );
   });
 });

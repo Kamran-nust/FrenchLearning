@@ -116,7 +116,12 @@ const cssVar = (token) => "--c-" + token;
 
 function themeCss() {
   const block = (selector, colors) =>
-    selector + "{" + Object.entries(colors).map(([k, v]) => cssVar(k) + ":" + v + ";").join("") + "}";
+    selector +
+    "{" +
+    Object.entries(colors)
+      .map(([k, v]) => cssVar(k) + ":" + v + ";")
+      .join("") +
+    "}";
   return (
     block(":root", THEMES[DEFAULT_THEME].colors) +
     Object.entries(THEMES)
@@ -138,7 +143,7 @@ export function getSavedTheme() {
   try {
     const id = localStorage.getItem(STORAGE_KEY);
     return isValidTheme(id) ? id : DEFAULT_THEME;
-  } catch (e) {
+  } catch {
     return DEFAULT_THEME;
   }
 }
@@ -148,7 +153,7 @@ export function applyTheme(id) {
   document.documentElement.setAttribute("data-theme", theme);
   try {
     localStorage.setItem(STORAGE_KEY, theme);
-  } catch (e) {
+  } catch {
     // Private mode etc. - the theme still applies for this session.
   }
   return theme;

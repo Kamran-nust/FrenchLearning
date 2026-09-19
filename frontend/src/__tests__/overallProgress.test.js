@@ -16,7 +16,13 @@ describe("loadFullyCompletedThrough", () => {
   });
 
   it("is the highest day every module has completed, counting from day 1", async () => {
-    fakeStorage({ progress: range(10), "grammar-progress": range(7), "kwiziq-progress": range(9), "tv5-progress": range(8), "writing-progress": range(12) });
+    fakeStorage({
+      progress: range(10),
+      "grammar-progress": range(7),
+      "kwiziq-progress": range(9),
+      "tv5-progress": range(8),
+      "writing-progress": range(12),
+    });
     expect(await loadFullyCompletedThrough(301)).toBe(7);
   });
 

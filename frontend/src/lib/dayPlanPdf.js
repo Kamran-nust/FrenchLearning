@@ -16,7 +16,7 @@ const BOTTOM = PAGE_H - 20;
 
 // The built-in PDF fonts only cover Latin-1 plus a few typographic marks
 // (enough for French). Anything else is replaced so it can't come out garbled.
-const KEEP = /[ -~ -ÿŒœ–—‘’“”•…]/;
+const KEEP = /[\u0020-\u007E\u00A0-\u00FF\u0152\u0153\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u2026]/;
 export function pdfSafe(text) {
   return Array.from(String(text == null ? "" : text))
     .map((ch) => (KEEP.test(ch) ? ch : ch === "→" ? "->" : /\s/.test(ch) ? " " : "?"))

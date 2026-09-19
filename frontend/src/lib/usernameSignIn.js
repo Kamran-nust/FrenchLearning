@@ -14,7 +14,7 @@ export async function signInWithUsername(username, password) {
       headers: { "Content-Type": "application/json", apikey: ANON_KEY, Authorization: "Bearer " + ANON_KEY },
       body: JSON.stringify({ username, password }),
     });
-  } catch (e) {
+  } catch {
     return "Couldn't reach the server. Check your connection.";
   }
   const body = await res.json().catch(() => ({}));

@@ -20,7 +20,10 @@ describe("fetchWritingFeedback", () => {
 
   it("maps 429 limit_reached to a limit error carrying the quota", async () => {
     invoke.mockResolvedValue(httpError(429, { code: "limit_reached", status: { resets_at: "x" } }));
-    await expect(fetchWritingFeedback("t", "d")).rejects.toMatchObject({ code: "limit_reached", quota: { resets_at: "x" } });
+    await expect(fetchWritingFeedback("t", "d")).rejects.toMatchObject({
+      code: "limit_reached",
+      quota: { resets_at: "x" },
+    });
   });
 
   it("maps 502 to busy", async () => {

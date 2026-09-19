@@ -34,8 +34,17 @@ export default function SessionBar({ userId, email }) {
   }
 
   return (
-    <div style={{ background: COLORS.card, borderBottom: "1px solid " + COLORS.border, fontFamily: "'IBM Plex Sans', sans-serif" }}>
-      <div className="w-full max-w-md mx-auto px-5 py-1.5 flex items-center justify-between text-xs" style={{ color: COLORS.muted }}>
+    <div
+      style={{
+        background: COLORS.card,
+        borderBottom: "1px solid " + COLORS.border,
+        fontFamily: "'IBM Plex Sans', sans-serif",
+      }}
+    >
+      <div
+        className="w-full max-w-md mx-auto px-5 py-1.5 flex items-center justify-between text-xs"
+        style={{ color: COLORS.muted }}
+      >
         <span className="truncate flex items-center gap-2">
           <span className="truncate">
             Signed in as <strong style={{ color: COLORS.text, fontWeight: 500 }}>{label}</strong>

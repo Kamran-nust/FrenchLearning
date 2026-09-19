@@ -36,14 +36,18 @@ export default function GrammarModule({ onBack, startDay }) {
         try {
           const r = await window.storage.get("grammar-progress", false);
           if (r && r.value) p = JSON.parse(r.value);
-        } catch (e) {}
+        } catch {}
       }
-      const diag = present ? await diagnoseStorage() : { ok: false, message: "window.storage is not present in this environment." };
+      const diag = present
+        ? await diagnoseStorage()
+        : { ok: false, message: "window.storage is not present in this environment." };
       if (cancelled) return;
       const finalProgress = p || GRAMMAR_FRESH_PROGRESS;
       setProgress(finalProgress);
       setStorageOk(diag.ok);
-      setViewDay(startDay ? Math.max(1, Math.min(startDay, GRAMMAR_TOTAL)) : Math.min(finalProgress.current_day, GRAMMAR_TOTAL));
+      setViewDay(
+        startDay ? Math.max(1, Math.min(startDay, GRAMMAR_TOTAL)) : Math.min(finalProgress.current_day, GRAMMAR_TOTAL),
+      );
       setPhase("day");
     }
     init();
@@ -57,7 +61,7 @@ export default function GrammarModule({ onBack, startDay }) {
       if (typeof window !== "undefined" && window.storage) {
         await window.storage.set(key, JSON.stringify(value), false);
       }
-    } catch (e) {
+    } catch {
       setStorageOk(false);
     }
   }
@@ -72,7 +76,7 @@ export default function GrammarModule({ onBack, startDay }) {
           if (!acc[entry.b]) acc[entry.b] = { book: entry.b, chapters: [] };
           acc[entry.b].chapters.push(...entry.c);
           return acc;
-        }, {})
+        }, {}),
       )
     : [];
 
@@ -84,7 +88,11 @@ export default function GrammarModule({ onBack, startDay }) {
       const url = URL.createObjectURL(blob);
       setPdfView({ url, label: book + " ch. " + chapters.join(", ") });
     } catch (e) {
-      setPdfError(e.code === "tier_required" ? "Grammar chapter PDFs are a Premium feature." : "Couldn't load those pages. Try again.");
+      setPdfError(
+        e.code === "tier_required"
+          ? "Grammar chapter PDFs are a Premium feature."
+          : "Couldn't load those pages. Try again.",
+      );
     } finally {
       setPdfLoading(false);
     }
@@ -159,13 +167,19 @@ export default function GrammarModule({ onBack, startDay }) {
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: COLORS.accentSoft }}>
           <Flame size={14} color={progress.streak_count > 0 ? COLORS.hard : COLORS.muted} />
-          <span className="text-xs font-medium" style={{ color: progress.streak_count > 0 ? COLORS.text : COLORS.muted }}>
+          <span
+            className="text-xs font-medium"
+            style={{ color: progress.streak_count > 0 ? COLORS.text : COLORS.muted }}
+          >
             {progress.streak_count}
           </span>
         </div>
       </div>
       <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: COLORS.border }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: pct + "%", background: COLORS.accent }} />
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: pct + "%", background: COLORS.accent }}
+        />
       </div>
       <div className="mt-1.5 text-xs" style={{ color: COLORS.muted }}>
         {totalDone} days done · {GRAMMAR_TOTAL - totalDone} to go
@@ -176,12 +190,19 @@ export default function GrammarModule({ onBack, startDay }) {
   const ResetControl = (
     <div className="w-full max-w-md mx-auto px-5 pb-6 pt-2">
       {!confirmingReset ? (
-        <button onClick={() => setConfirmingReset(true)} className="text-xs flex items-center gap-1.5 mx-auto" style={{ color: COLORS.muted }}>
+        <button
+          onClick={() => setConfirmingReset(true)}
+          className="text-xs flex items-center gap-1.5 mx-auto"
+          style={{ color: COLORS.muted }}
+        >
           <RotateCcw size={12} />
           Reset progress
         </button>
       ) : (
-        <div className="flex items-center justify-center gap-3 text-xs p-3 rounded-xl" style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}>
+        <div
+          className="flex items-center justify-center gap-3 text-xs p-3 rounded-xl"
+          style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}
+        >
           <span style={{ color: COLORS.text }}>Erase all saved progress?</span>
           <button onClick={doReset} className="font-medium" style={{ color: COLORS.danger }}>
             Yes, reset
@@ -239,7 +260,10 @@ export default function GrammarModule({ onBack, startDay }) {
         <GlobalStyle />
         {Header}
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-5" style={{ background: COLORS.successSoft }}>
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
+            style={{ background: COLORS.successSoft }}
+          >
             <Check size={28} color={COLORS.success} />
           </div>
           <div className="text-2xl mb-2" style={{ fontFamily: "'Fraunces', serif" }}>
@@ -260,7 +284,10 @@ export default function GrammarModule({ onBack, startDay }) {
         <GlobalStyle />
         {Header}
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-5" style={{ background: COLORS.successSoft }}>
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
+            style={{ background: COLORS.successSoft }}
+          >
             <Check size={28} color={COLORS.success} />
           </div>
           <div className="text-2xl mb-1" style={{ fontFamily: "'Fraunces', serif" }}>
@@ -269,7 +296,11 @@ export default function GrammarModule({ onBack, startDay }) {
           <div className="text-sm mb-6" style={{ color: COLORS.muted }}>
             {completionInfo.remaining} days left · streak {completionInfo.streak}
           </div>
-          <button onClick={continueNext} className="px-6 py-3 rounded-xl text-sm font-medium" style={{ background: COLORS.accent, color: COLORS.onAccent }}>
+          <button
+            onClick={continueNext}
+            className="px-6 py-3 rounded-xl text-sm font-medium"
+            style={{ background: COLORS.accent, color: COLORS.onAccent }}
+          >
             Start next day
           </button>
         </div>
@@ -362,25 +393,25 @@ export default function GrammarModule({ onBack, startDay }) {
                 </div>
               }
             >
-            <div className="w-full mt-3 flex flex-col gap-2">
-              {bookGroups.map((g) => (
-                <button
-                  key={g.book}
-                  onClick={() => openChapterPages(g.book, g.chapters)}
-                  disabled={pdfLoading}
-                  className="w-full py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2"
-                  style={{ background: COLORS.accentSoft, color: COLORS.link, opacity: pdfLoading ? 0.6 : 1 }}
-                >
-                  <BookOpen size={14} />
-                  {pdfLoading ? "Loading pages…" : "Open " + g.book + " ch. " + g.chapters.join(", ")}
-                </button>
-              ))}
-              {pdfError && (
-                <div className="text-xs text-center" style={{ color: COLORS.danger }}>
-                  {pdfError}
-                </div>
-              )}
-            </div>
+              <div className="w-full mt-3 flex flex-col gap-2">
+                {bookGroups.map((g) => (
+                  <button
+                    key={g.book}
+                    onClick={() => openChapterPages(g.book, g.chapters)}
+                    disabled={pdfLoading}
+                    className="w-full py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2"
+                    style={{ background: COLORS.accentSoft, color: COLORS.link, opacity: pdfLoading ? 0.6 : 1 }}
+                  >
+                    <BookOpen size={14} />
+                    {pdfLoading ? "Loading pages…" : "Open " + g.book + " ch. " + g.chapters.join(", ")}
+                  </button>
+                ))}
+                {pdfError && (
+                  <div className="text-xs text-center" style={{ color: COLORS.danger }}>
+                    {pdfError}
+                  </div>
+                )}
+              </div>
             </Gate>
           )}
 

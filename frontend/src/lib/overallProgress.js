@@ -19,7 +19,7 @@ export async function loadFullyCompletedThrough(totalDays) {
     let n = 0;
     while (n < totalDays && sets.every((s) => s.has(n + 1))) n += 1;
     return n;
-  } catch (e) {
+  } catch {
     return null;
   }
 }

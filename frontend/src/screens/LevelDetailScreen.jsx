@@ -4,7 +4,10 @@ import { SECTIONS } from "../shared/navigationConfig";
 
 export default function LevelDetailScreen({ level, onBack, onSelectSection }) {
   return (
-    <div style={{ background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" }} className="min-h-screen">
+    <div
+      style={{ background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" }}
+      className="min-h-screen"
+    >
       <GlobalStyle />
       <div className="w-full max-w-md mx-auto px-5 pt-6 pb-10">
         <div className="flex items-center gap-2 mb-6">

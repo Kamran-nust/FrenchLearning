@@ -4,7 +4,7 @@ import { THEMES, DEFAULT_THEME, colorVar } from "./themes";
 // so components keep writing COLORS.bg, COLORS.accent, ... and the values
 // follow whichever theme is active.
 export const COLORS = Object.fromEntries(
-  Object.keys(THEMES[DEFAULT_THEME].colors).map((token) => [token, colorVar(token)])
+  Object.keys(THEMES[DEFAULT_THEME].colors).map((token) => [token, colorVar(token)]),
 );
 
 const GLOBAL_CSS =

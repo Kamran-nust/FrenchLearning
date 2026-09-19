@@ -116,20 +116,22 @@ export default function AnkiModule({ onBack, startDay }) {
       let hw = [];
       let cs = {};
       const present = await waitForStorage(10, 300);
-      const diag = present ? await diagnoseStorage() : { ok: false, message: "window.storage is not present in this environment." };
+      const diag = present
+        ? await diagnoseStorage()
+        : { ok: false, message: "window.storage is not present in this environment." };
       if (diag.ok) {
         try {
           const r = await window.storage.get("progress", false);
           if (r && r.value) p = JSON.parse(r.value);
-        } catch (e) {}
+        } catch {}
         try {
           const r = await window.storage.get("hard-words", false);
           if (r && r.value) hw = JSON.parse(r.value);
-        } catch (e) {}
+        } catch {}
         try {
           const r = await window.storage.get("card-stats", false);
           if (r && r.value) cs = JSON.parse(r.value);
-        } catch (e) {}
+        } catch {}
       }
       if (cancelled) return;
       const finalProgress = p || FRESH_PROGRESS;
@@ -173,7 +175,7 @@ export default function AnkiModule({ onBack, startDay }) {
       if (voiceRef.current) u.voice = voiceRef.current;
       u.rate = 0.92;
       window.speechSynthesis.speak(u);
-    } catch (e) {}
+    } catch {}
   }, []);
 
   const currentItem = session ? session.queue[qIndex] : null;
@@ -199,7 +201,7 @@ export default function AnkiModule({ onBack, startDay }) {
       if (typeof window !== "undefined" && window.storage) {
         await window.storage.set(key, JSON.stringify(value), false);
       }
-    } catch (e) {
+    } catch {
       setStorageOk(false);
     }
   }
@@ -387,13 +389,16 @@ export default function AnkiModule({ onBack, startDay }) {
             {phase === "finished"
               ? "Plan complete"
               : isPracticeSession && session
-              ? "Practicing Day " + session.dayObj.d + " of " + TOTAL_DAYS
-              : "Day " + Math.min(progress.current_day, TOTAL_DAYS) + " of " + TOTAL_DAYS}
+                ? "Practicing Day " + session.dayObj.d + " of " + TOTAL_DAYS
+                : "Day " + Math.min(progress.current_day, TOTAL_DAYS) + " of " + TOTAL_DAYS}
           </div>
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: COLORS.accentSoft }}>
           <Flame size={14} color={progress.streak_count > 0 ? COLORS.hard : COLORS.muted} />
-          <span className="text-xs font-medium" style={{ color: progress.streak_count > 0 ? COLORS.text : COLORS.muted }}>
+          <span
+            className="text-xs font-medium"
+            style={{ color: progress.streak_count > 0 ? COLORS.text : COLORS.muted }}
+          >
             {progress.streak_count}
           </span>
         </div>
@@ -526,16 +531,15 @@ export default function AnkiModule({ onBack, startDay }) {
 
       {!storageOk && (
         <div className="w-full max-w-md mx-auto px-5 mb-2">
-          <div
-            className="text-xs px-3 py-2 rounded-lg"
-            style={{ background: COLORS.hardSoft, color: COLORS.warnText }}
-          >
+          <div className="text-xs px-3 py-2 rounded-lg" style={{ background: COLORS.hardSoft, color: COLORS.warnText }}>
             <div className="flex items-center justify-between gap-2">
               <span>Progress isn't saving right now — it may be lost if you reload.</span>
               <button
                 onClick={async () => {
                   const present = await waitForStorage(6, 250);
-                  const diag = present ? await diagnoseStorage() : { ok: false, message: "window.storage is not present in this environment." };
+                  const diag = present
+                    ? await diagnoseStorage()
+                    : { ok: false, message: "window.storage is not present in this environment." };
                   setStorageOk(diag.ok);
                   setStorageDiag(diag.message);
                   if (diag.ok) {
@@ -628,9 +632,7 @@ export default function AnkiModule({ onBack, startDay }) {
                 >
                   {revealed && (
                     <div className="flex items-center justify-center gap-2">
-                      <span style={{ fontFamily: "'Fraunces', serif", fontSize: "1.5rem" }}>
-                        {answerText}
-                      </span>
+                      <span style={{ fontFamily: "'Fraunces', serif", fontSize: "1.5rem" }}>{answerText}</span>
                       {currentItem.dir === "EF" && (
                         <button onClick={() => speak(currentItem.f)} aria-label="Play pronunciation">
                           <Volume2 size={16} color={COLORS.muted} />
@@ -648,7 +650,11 @@ export default function AnkiModule({ onBack, startDay }) {
               className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
               style={{ background: COLORS.accent }}
             >
-              {isLast ? <Check size={18} color={COLORS.onAccent} /> : <ChevronRight size={18} color={COLORS.onAccent} />}
+              {isLast ? (
+                <Check size={18} color={COLORS.onAccent} />
+              ) : (
+                <ChevronRight size={18} color={COLORS.onAccent} />
+              )}
             </button>
           </div>
 

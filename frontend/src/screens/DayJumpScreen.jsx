@@ -34,7 +34,11 @@ export default function DayJumpScreen({ onBack, onSelectSection }) {
             <Icon size={14} color={COLORS.accent} />
             <span className="text-xs font-medium">{label}</span>
           </div>
-          <button onClick={() => onSelectSection(id, chosenDay)} className="text-xs font-medium" style={{ color: COLORS.accent }}>
+          <button
+            onClick={() => onSelectSection(id, chosenDay)}
+            className="text-xs font-medium"
+            style={{ color: COLORS.accent }}
+          >
             Open
           </button>
         </div>
@@ -46,7 +50,10 @@ export default function DayJumpScreen({ onBack, onSelectSection }) {
   };
 
   return (
-    <div style={{ background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" }} className="min-h-screen">
+    <div
+      style={{ background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" }}
+      className="min-h-screen"
+    >
       <GlobalStyle />
       <div className="w-full max-w-md mx-auto px-5 pt-6 pb-10">
         <div className="flex items-center gap-2 mb-6">
@@ -74,7 +81,11 @@ export default function DayJumpScreen({ onBack, onSelectSection }) {
             className="flex-1 text-sm rounded-lg px-3 py-2.5"
             style={{ background: COLORS.card, border: "1px solid " + COLORS.border, color: COLORS.text }}
           />
-          <button onClick={go} className="px-5 rounded-lg text-sm font-medium" style={{ background: COLORS.accent, color: COLORS.onAccent }}>
+          <button
+            onClick={go}
+            className="px-5 rounded-lg text-sm font-medium"
+            style={{ background: COLORS.accent, color: COLORS.onAccent }}
+          >
             Go
           </button>
         </div>
@@ -85,16 +96,32 @@ export default function DayJumpScreen({ onBack, onSelectSection }) {
               Day {chosenDay} · Week {Math.ceil(chosenDay / 7)}
             </div>
 
-            {previewRow(BookOpen, "Anki", "anki", ankiDay.c.length + " new cards — " + ankiDay.c.slice(0, 3).map((c) => c.f).join(", ") + (ankiDay.c.length > 3 ? "…" : ""))}
+            {previewRow(
+              BookOpen,
+              "Anki",
+              "anki",
+              ankiDay.c.length +
+                " new cards — " +
+                ankiDay.c
+                  .slice(0, 3)
+                  .map((c) => c.f)
+                  .join(", ") +
+                (ankiDay.c.length > 3 ? "…" : ""),
+            )}
             {previewRow(GraduationCap, "Grammar book", "grammar", grammarDay.x)}
             {previewRow(PenLine, "Kwiziq", "kwiziq", kwiziqDay.x)}
-            {previewRow(Tv, "TV5MONDE", "tv5monde", (tv5Day.l ? tv5Day.l + " — " : "") + tv5Day.x.replace(/^(Première classe|A1-A2|A2-B1|B1-B2|A1|A2|B1|B2)\s*:\s*/, ""))}
+            {previewRow(
+              Tv,
+              "TV5MONDE",
+              "tv5monde",
+              (tv5Day.l ? tv5Day.l + " — " : "") +
+                tv5Day.x.replace(/^(Première classe|A1-A2|A2-B1|B1-B2|A1|A2|B1|B2)\s*:\s*/, ""),
+            )}
             {previewRow(FileEdit, "Writing", "writing", writingDay.x)}
             <DayPlanDownload
               day={chosenDay}
               plan={{ anki: ankiDay, grammar: grammarDay, kwiziq: kwiziqDay, tv5: tv5Day, writing: writingDay }}
             />
-
           </div>
         )}
       </div>

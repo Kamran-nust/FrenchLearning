@@ -6,7 +6,9 @@ import { supabase } from "../lib/supabaseClient";
 import { fetchAdminUsers, changeUserTier } from "../lib/admin";
 
 function formatDate(iso) {
-  return iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "never";
+  return iso
+    ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    : "never";
 }
 
 function timeAgo(iso) {
@@ -44,7 +46,11 @@ export default function AdminScreen({ onBack }) {
 
   async function setTier(user, tier) {
     if (tier === user.tier) return;
-    if (tier === "super" && !window.confirm("Make " + (user.email || "this user") + " a super user? Super users can change everyone's tier.")) return;
+    if (
+      tier === "super" &&
+      !window.confirm("Make " + (user.email || "this user") + " a super user? Super users can change everyone's tier.")
+    )
+      return;
     setSaving((s) => ({ ...s, [user.user_id]: true }));
     setRowError((e) => ({ ...e, [user.user_id]: "" }));
     try {
@@ -68,11 +74,16 @@ export default function AdminScreen({ onBack }) {
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return users || [];
-    return (users || []).filter((u) => (u.email || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q));
+    return (users || []).filter(
+      (u) => (u.email || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q),
+    );
   }, [users, query]);
 
   return (
-    <div style={{ background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" }} className="min-h-screen">
+    <div
+      style={{ background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" }}
+      className="min-h-screen"
+    >
       <GlobalStyle />
       <div className="w-full max-w-md mx-auto px-5 pt-6 pb-10">
         <div className="flex items-center gap-2 mb-6">
@@ -94,7 +105,11 @@ export default function AdminScreen({ onBack }) {
         {users && users.length > 0 && (
           <div className="flex gap-2 mb-4 text-xs">
             {TIER_ORDER.map((t) => (
-              <span key={t} className="px-2.5 py-1 rounded-full" style={{ background: COLORS.accentSoft, color: COLORS.text }}>
+              <span
+                key={t}
+                className="px-2.5 py-1 rounded-full"
+                style={{ background: COLORS.accentSoft, color: COLORS.text }}
+              >
                 {counts[t]} {TIER_LABELS[t].toLowerCase()}
               </span>
             ))}
@@ -109,7 +124,12 @@ export default function AdminScreen({ onBack }) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by email or username"
             className="w-full text-sm rounded-lg py-2.5 pr-3"
-            style={{ paddingLeft: 34, background: COLORS.card, border: "1px solid " + COLORS.border, color: COLORS.text }}
+            style={{
+              paddingLeft: 34,
+              background: COLORS.card,
+              border: "1px solid " + COLORS.border,
+              color: COLORS.text,
+            }}
           />
         </div>
 
@@ -138,7 +158,11 @@ export default function AdminScreen({ onBack }) {
           {shown.map((u) => {
             const isMe = u.user_id === myId;
             return (
-              <div key={u.user_id} className="rounded-2xl p-4" style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}>
+              <div
+                key={u.user_id}
+                className="rounded-2xl p-4"
+                style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">
@@ -180,7 +204,8 @@ export default function AdminScreen({ onBack }) {
                 </div>
                 <div className="text-xs mt-2" style={{ color: COLORS.muted }}>
                   Joined {formatDate(u.created_at)} · Last sign-in {timeAgo(u.last_sign_in_at)}
-                  {u.feedback_used_24h > 0 && " · " + u.feedback_used_24h + " AI feedback" + (u.feedback_used_24h === 1 ? "" : "s") + " (24h)"}
+                  {u.feedback_used_24h > 0 &&
+                    " · " + u.feedback_used_24h + " AI feedback" + (u.feedback_used_24h === 1 ? "" : "s") + " (24h)"}
                 </div>
                 {rowError[u.user_id] && (
                   <div className="text-xs mt-2" style={{ color: COLORS.danger }}>

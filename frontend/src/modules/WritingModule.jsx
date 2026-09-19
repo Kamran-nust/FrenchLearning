@@ -67,13 +67,15 @@ export default function WritingModule({ onBack, startDay }) {
         try {
           const r = await window.storage.get("writing-progress", false);
           if (r && r.value) p = JSON.parse(r.value);
-        } catch (e) {}
+        } catch {}
         try {
           const r = await window.storage.get("writing-entries", false);
           if (r && r.value) ent = JSON.parse(r.value);
-        } catch (e) {}
+        } catch {}
       }
-      const diag = present ? await diagnoseStorage() : { ok: false, message: "window.storage is not present in this environment." };
+      const diag = present
+        ? await diagnoseStorage()
+        : { ok: false, message: "window.storage is not present in this environment." };
       if (cancelled) return;
       const finalProgress = p || WRITING_FRESH_PROGRESS;
       setProgress(finalProgress);
@@ -97,7 +99,7 @@ export default function WritingModule({ onBack, startDay }) {
       if (typeof window !== "undefined" && window.storage) {
         await window.storage.set(key, JSON.stringify(value), false);
       }
-    } catch (e) {
+    } catch {
       setStorageOk(false);
     }
   }
@@ -109,7 +111,11 @@ export default function WritingModule({ onBack, startDay }) {
   const wordCount = countWords(draft);
   const currentFeedback = entries[viewDay] && entries[viewDay].feedback;
   const limitReached =
-    !!quota && quota.limit !== null && quota.remaining === 0 && !!quota.resets_at && Date.parse(quota.resets_at) > Date.now();
+    !!quota &&
+    quota.limit !== null &&
+    quota.remaining === 0 &&
+    !!quota.resets_at &&
+    Date.parse(quota.resets_at) > Date.now();
 
   function switchToDay(day) {
     // flush any pending debounced save for the day we're leaving first
@@ -152,7 +158,10 @@ export default function WritingModule({ onBack, startDay }) {
     try {
       const { feedback: text, quota: latest } = await fetchWritingFeedback(viewed.x, draft);
       if (latest) setQuota(latest);
-      const next = { ...entriesRef.current, [viewDay]: { ...(entriesRef.current[viewDay] || {}), text: draft, feedback: text } };
+      const next = {
+        ...entriesRef.current,
+        [viewDay]: { ...(entriesRef.current[viewDay] || {}), text: draft, feedback: text },
+      };
       entriesRef.current = next;
       setEntries(next);
       persist("writing-entries", next);
@@ -233,13 +242,19 @@ export default function WritingModule({ onBack, startDay }) {
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: COLORS.accentSoft }}>
           <Flame size={14} color={progress.streak_count > 0 ? COLORS.hard : COLORS.muted} />
-          <span className="text-xs font-medium" style={{ color: progress.streak_count > 0 ? COLORS.text : COLORS.muted }}>
+          <span
+            className="text-xs font-medium"
+            style={{ color: progress.streak_count > 0 ? COLORS.text : COLORS.muted }}
+          >
             {progress.streak_count}
           </span>
         </div>
       </div>
       <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: COLORS.border }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: pct + "%", background: COLORS.accent }} />
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: pct + "%", background: COLORS.accent }}
+        />
       </div>
       <div className="mt-1.5 text-xs" style={{ color: COLORS.muted }}>
         {totalDone} days done · {WRITING_TOTAL - totalDone} to go
@@ -250,12 +265,19 @@ export default function WritingModule({ onBack, startDay }) {
   const ResetControl = (
     <div className="w-full max-w-md mx-auto px-5 pb-6 pt-2">
       {!confirmingReset ? (
-        <button onClick={() => setConfirmingReset(true)} className="text-xs flex items-center gap-1.5 mx-auto" style={{ color: COLORS.muted }}>
+        <button
+          onClick={() => setConfirmingReset(true)}
+          className="text-xs flex items-center gap-1.5 mx-auto"
+          style={{ color: COLORS.muted }}
+        >
           <RotateCcw size={12} />
           Reset progress
         </button>
       ) : (
-        <div className="flex items-center justify-center gap-3 text-xs p-3 rounded-xl" style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}>
+        <div
+          className="flex items-center justify-center gap-3 text-xs p-3 rounded-xl"
+          style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}
+        >
           <span style={{ color: COLORS.text }}>Erase all saved progress and writing?</span>
           <button onClick={doReset} className="font-medium" style={{ color: COLORS.danger }}>
             Yes, reset
@@ -287,7 +309,10 @@ export default function WritingModule({ onBack, startDay }) {
         <GlobalStyle />
         {Header}
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-5" style={{ background: COLORS.successSoft }}>
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
+            style={{ background: COLORS.successSoft }}
+          >
             <Check size={28} color={COLORS.success} />
           </div>
           <div className="text-2xl mb-2" style={{ fontFamily: "'Fraunces', serif" }}>
@@ -308,7 +333,10 @@ export default function WritingModule({ onBack, startDay }) {
         <GlobalStyle />
         {Header}
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-5" style={{ background: COLORS.successSoft }}>
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
+            style={{ background: COLORS.successSoft }}
+          >
             <Check size={28} color={COLORS.success} />
           </div>
           <div className="text-2xl mb-1" style={{ fontFamily: "'Fraunces', serif" }}>
@@ -317,7 +345,11 @@ export default function WritingModule({ onBack, startDay }) {
           <div className="text-sm mb-6" style={{ color: COLORS.muted }}>
             {completionInfo.remaining} days left · streak {completionInfo.streak}
           </div>
-          <button onClick={continueNext} className="px-6 py-3 rounded-xl text-sm font-medium" style={{ background: COLORS.accent, color: COLORS.onAccent }}>
+          <button
+            onClick={continueNext}
+            className="px-6 py-3 rounded-xl text-sm font-medium"
+            style={{ background: COLORS.accent, color: COLORS.onAccent }}
+          >
             Start next day
           </button>
         </div>
@@ -415,17 +447,14 @@ export default function WritingModule({ onBack, startDay }) {
                   cursor: !draft.trim() || limitReached ? "default" : "pointer",
                 }}
               >
-                {feedbackState === "loading" ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Sparkles size={14} />
-                )}
+                {feedbackState === "loading" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                 {feedbackState === "loading" ? "Getting feedback…" : "Get feedback"}
               </button>
 
               {limitReached ? (
                 <div className="text-xs text-center" style={{ color: COLORS.muted }}>
-                  Daily AI feedback limit reached. Next one available in {formatWait(Date.parse(quota.resets_at) - Date.now())}.
+                  Daily AI feedback limit reached. Next one available in{" "}
+                  {formatWait(Date.parse(quota.resets_at) - Date.now())}.
                 </div>
               ) : (
                 quota &&

@@ -23,7 +23,7 @@ export default function ThemePicker() {
         if (!cancelled && !pickedByUser.current && isValidTheme(saved)) {
           setCurrent(applyTheme(saved));
         }
-      } catch (e) {
+      } catch {
         // No saved theme, or storage unavailable - keep the device's theme.
       }
     })();
@@ -54,7 +54,7 @@ export default function ThemePicker() {
     setOpen(false);
     try {
       await window.storage.set(ACCOUNT_KEY, JSON.stringify(id), false);
-    } catch (e) {
+    } catch {
       // The theme still applies on this device even if saving to the account failed.
     }
   }

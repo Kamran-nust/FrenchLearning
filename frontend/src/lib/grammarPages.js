@@ -29,7 +29,7 @@ export async function fetchGrammarPages(book, chapters) {
     let detail = "";
     try {
       detail = (await res.json()).error || "";
-    } catch (e) {
+    } catch {
       // Error response wasn't JSON (e.g. a proxy/gateway error page) -
       // fall back to the generic message below, nothing to recover here.
     }

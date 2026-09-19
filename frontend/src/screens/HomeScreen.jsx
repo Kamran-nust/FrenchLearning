@@ -52,12 +52,46 @@ function CornerFlourish({ side }) {
       {isLeft ? (
         <g stroke={COLORS.gold} strokeWidth="1.4" fill="none" strokeLinecap="round">
           <path d="M4 4 C 20 10, 34 20, 44 34" />
-          <ellipse cx="18" cy="9" rx="7" ry="3.2" transform="rotate(28 18 9)" fill={COLORS.gold} opacity="0.7" stroke="none" />
-          <ellipse cx="28" cy="16" rx="6.4" ry="3" transform="rotate(35 28 16)" fill={COLORS.gold} opacity="0.55" stroke="none" />
-          <ellipse cx="37" cy="26" rx="5.6" ry="2.6" transform="rotate(42 37 26)" fill={COLORS.gold} opacity="0.4" stroke="none" />
+          <ellipse
+            cx="18"
+            cy="9"
+            rx="7"
+            ry="3.2"
+            transform="rotate(28 18 9)"
+            fill={COLORS.gold}
+            opacity="0.7"
+            stroke="none"
+          />
+          <ellipse
+            cx="28"
+            cy="16"
+            rx="6.4"
+            ry="3"
+            transform="rotate(35 28 16)"
+            fill={COLORS.gold}
+            opacity="0.55"
+            stroke="none"
+          />
+          <ellipse
+            cx="37"
+            cy="26"
+            rx="5.6"
+            ry="2.6"
+            transform="rotate(42 37 26)"
+            fill={COLORS.gold}
+            opacity="0.4"
+            stroke="none"
+          />
         </g>
       ) : (
-        <g stroke={COLORS.accent} strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.6">
+        <g
+          stroke={COLORS.accent}
+          strokeWidth="1.4"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity="0.6"
+        >
           <path d="M60 6 L64 20 L58 18 L56 30 L50 20 L44 24 L52 10 L56 14 Z" />
         </g>
       )}
@@ -79,7 +113,10 @@ export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDa
   }, []);
 
   return (
-    <div style={{ background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" }} className="min-h-screen">
+    <div
+      style={{ background: COLORS.bg, color: COLORS.text, fontFamily: "'IBM Plex Sans', sans-serif" }}
+      className="min-h-screen"
+    >
       <GlobalStyle />
       <div className="w-full max-w-md mx-auto px-6 pt-10 pb-10 relative">
         <CornerFlourish side="left" />
@@ -92,9 +129,7 @@ export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDa
           >
             A DAILY LANGUAGE JOURNEY
           </div>
-          <h1
-            style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: "2.1rem", lineHeight: 1.15 }}
-          >
+          <h1 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: "2.1rem", lineHeight: 1.15 }}>
             French NCLC 7
             <br />
             Preparation Plan
@@ -106,14 +141,20 @@ export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDa
           {completedThrough !== null && (
             <div className="flex flex-col items-center mt-5">
               {completedThrough > 0 && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-2.5" style={{ background: COLORS.accentSoft }}>
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-2.5"
+                  style={{ background: COLORS.accentSoft }}
+                >
                   <Check size={14} color={COLORS.success} />
                   <span className="text-xs font-medium" style={{ color: COLORS.text }}>
                     {"Day " + completedThrough + " complete"}
                   </span>
                 </div>
               )}
-              <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: COLORS.border, maxWidth: "200px" }}>
+              <div
+                className="w-full h-1 rounded-full overflow-hidden"
+                style={{ background: COLORS.border, maxWidth: "200px" }}
+              >
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{ width: Math.round((completedThrough / TOTAL_DAYS) * 100) + "%", background: COLORS.accent }}
