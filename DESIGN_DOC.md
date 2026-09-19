@@ -666,11 +666,12 @@ using it does it grey out with "Available again in Xh Ym".
   minutes; a correct sign-in clears the count. Functions no longer return
   internal error detail to the browser (it is logged server-side instead), and
   malformed requests get 400.
-- **Shared module code.** Kwiziq and TV5MONDE are two thin configs
-  (`modules/KwiziqModule.jsx`, `modules/Tv5Module.jsx`) over one screen,
-  `modules/LessonDayModule.jsx`; a change to how a lesson-list day works is made
-  once. Snapshot tests (`__tests__/lessonModules.snapshot.test.jsx`) pin down
-  the exact rendered output of both, so a refactor that changes anything visible
-  fails the tests. The "complete the day + streak" rule and the fresh-progress
-  shape live in `shared/progress.js` (unit-tested) and are used by the Grammar,
-  Kwiziq/TV5 and Writing modules. Anki keeps its own session logic.
+- **Module code.** Kwiziq and TV5MONDE are deliberately separate modules, each
+  its own file and screen (`modules/KwiziqModule.jsx`, `modules/Tv5Module.jsx`),
+  even though they are similar - they are different sections of the app and
+  are expected to diverge. Snapshot tests
+  (`__tests__/lessonModules.snapshot.test.jsx`) pin down the exact rendered
+  output of both, so an unintended visual change fails the tests. The "complete
+  the day + streak" rule and the fresh-progress shape live in `shared/progress.js`
+  (unit-tested) and are used by the Grammar and Writing modules. Kwiziq, TV5 and
+  Anki keep their own copies.
