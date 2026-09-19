@@ -3,7 +3,7 @@ import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Loader2, Sparkles }
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { todayKey, waitForStorage, diagnoseStorage } from "../shared/storage";
 import { WRITING_DAYS } from "../data/writingDays";
-import { fetchWritingFeedback } from "../lib/writingFeedback";
+import { fetchWritingFeedback, fetchFeedbackQuota } from "../lib/writingFeedback";
 
 const WRITING_TOTAL = WRITING_DAYS.length;
 
@@ -14,6 +14,13 @@ const WRITING_FRESH_PROGRESS = {
   streak_count: 0,
   longest_streak: 0,
 };
+
+function formatWait(ms) {
+  const totalMinutes = Math.max(1, Math.ceil(ms / 60000));
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return h > 0 ? h + "h " + m + "m" : m + "m";
+}
 
 function extractWordTarget(text) {
   const m = text.match(/(\d+)[\s-]*words?\b/i);
@@ -37,12 +44,18 @@ export default function WritingModule({ onBack, startDay }) {
   const [draft, setDraft] = useState("");
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
   const [feedbackState, setFeedbackState] = useState("idle"); // idle | loading | error
+  const [feedbackError, setFeedbackError] = useState(null); // "busy" | "other" when feedbackState is "error"
+  const [quota, setQuota] = useState(null); // AI feedback allowance for this user; null until loaded
   const saveTimer = useRef(null);
   const entriesRef = useRef({});
 
   useEffect(() => {
     entriesRef.current = entries;
   }, [entries]);
+
+  useEffect(() => {
+    fetchFeedbackQuota().then(setQuota);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +108,8 @@ export default function WritingModule({ onBack, startDay }) {
   const wordTarget = viewed ? extractWordTarget(viewed.x) : null;
   const wordCount = countWords(draft);
   const currentFeedback = entries[viewDay] && entries[viewDay].feedback;
+  const limitReached =
+    !!quota && quota.limit !== null && quota.remaining === 0 && !!quota.resets_at && Date.parse(quota.resets_at) > Date.now();
 
   function switchToDay(day) {
     // flush any pending debounced save for the day we're leaving first
@@ -133,15 +148,24 @@ export default function WritingModule({ onBack, startDay }) {
   async function getFeedback() {
     if (!draft.trim()) return;
     setFeedbackState("loading");
+    setFeedbackError(null);
     try {
-      const text = await fetchWritingFeedback(viewed.x, draft);
+      const { feedback: text, quota: latest } = await fetchWritingFeedback(viewed.x, draft);
+      if (latest) setQuota(latest);
       const next = { ...entriesRef.current, [viewDay]: { ...(entriesRef.current[viewDay] || {}), text: draft, feedback: text } };
       entriesRef.current = next;
       setEntries(next);
       persist("writing-entries", next);
       setFeedbackState("idle");
     } catch (e) {
-      setFeedbackState("error");
+      if (e.code === "limit_reached") {
+        // The limit line under the button explains it; no separate error needed.
+        if (e.quota) setQuota(e.quota);
+        setFeedbackState("idle");
+      } else {
+        setFeedbackError(e.code || "other");
+        setFeedbackState("error");
+      }
     }
   }
 
@@ -382,13 +406,13 @@ export default function WritingModule({ onBack, startDay }) {
 
               <button
                 onClick={getFeedback}
-                disabled={!draft.trim() || feedbackState === "loading"}
+                disabled={!draft.trim() || feedbackState === "loading" || limitReached}
                 className="w-full py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
                 style={{
                   background: COLORS.goldSoft,
                   color: COLORS.gold,
-                  opacity: !draft.trim() ? 0.5 : 1,
-                  cursor: !draft.trim() ? "default" : "pointer",
+                  opacity: !draft.trim() || limitReached ? 0.5 : 1,
+                  cursor: !draft.trim() || limitReached ? "default" : "pointer",
                 }}
               >
                 {feedbackState === "loading" ? (
@@ -399,9 +423,24 @@ export default function WritingModule({ onBack, startDay }) {
                 {feedbackState === "loading" ? "Getting feedback…" : "Get feedback"}
               </button>
 
+              {limitReached ? (
+                <div className="text-xs text-center" style={{ color: COLORS.muted }}>
+                  Daily AI feedback limit reached. Next one available in {formatWait(Date.parse(quota.resets_at) - Date.now())}.
+                </div>
+              ) : (
+                quota &&
+                quota.limit !== null && (
+                  <div className="text-xs text-center" style={{ color: COLORS.muted }}>
+                    {quota.remaining} of {quota.limit} AI feedback{quota.limit === 1 ? "" : "s"} left
+                  </div>
+                )
+              )}
+
               {feedbackState === "error" && (
                 <div className="text-xs text-center" style={{ color: COLORS.danger }}>
-                  Couldn't get feedback — check your connection and try again.
+                  {feedbackError === "busy"
+                    ? "The AI is busy right now. Try again in a minute — that didn't use any of your allowance."
+                    : "Couldn't get feedback — check your connection and try again."}
                 </div>
               )}
 

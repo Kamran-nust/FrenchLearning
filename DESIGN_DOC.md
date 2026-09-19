@@ -507,6 +507,23 @@ Rule for new UI: use tokens from `COLORS`, never hardcoded hex colours.
 - Assign a tier: `update user_tiers set tier = 'premium' where user_id =
   (select id from auth.users where email = 'someone@example.com');`
 
+**AI writing-feedback limits (per tier, rolling 24 hours).** Free: 1,
+Premium: 5, Super: unlimited. Limits live in the `tier_limits` table
+(`0004_feedback_limits.sql`; NULL = unlimited), so they can be changed with
+one SQL update and no deploy, e.g.
+`update tier_limits set feedback_per_day = 10 where tier = 'premium';`.
+Enforced server-side in the `writing-feedback` function: it reserves a use
+atomically (`try_use_feedback`, service-role only, per-user lock so two
+simultaneous requests can't both slip under the limit) *before* calling
+Gemini, and refunds it if Gemini fails, so a failed AI call never costs the
+user an allowance. Over the limit returns 429 with the time the next slot
+frees up. Bad input is rejected before anything is reserved. The Writing
+screen shows "N of M AI feedbacks left", disables the button with "Next one
+available in Xh Ym" at the limit, and says "the AI is busy" (no allowance
+used) when Gemini itself is rate-limiting. Note Gemini's free tier caps the
+*whole app* at roughly 10 requests/minute across all users; that is a Google
+limit separate from these per-user allowances.
+
 **Planned upgrade: OAuth (Google sign-in).** Parked for later, same reasoning
 pattern as the TTS/PDF upgrades in §6.1/§9.1 — not something blocking current
 use, worth doing when convenient. Would mean registering an OAuth app in
