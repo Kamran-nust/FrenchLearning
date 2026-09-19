@@ -1,10 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LogOut } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { COLORS } from "./shared/theme.jsx";
 
-export default function SessionBar({ label }) {
+export default function SessionBar({ userId, email }) {
   const [signingOut, setSigningOut] = useState(false);
+  const [username, setUsername] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("username")
+      .eq("user_id", userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setUsername(data ? data.username : null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const label = username || email;
 
   async function logout() {
     setSigningOut(true);

@@ -13,10 +13,13 @@ const COLORS = {
   muted: "#8291AB",
 };
 
+const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(undefined); // undefined = still checking
   const [mode, setMode] = useState("signin"); // "signin" | "signup"
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -62,10 +65,27 @@ export default function AuthGate({ children }) {
       setSubmitting(false);
       if (error) setError(error.message);
     } else {
+      const name = username.trim();
+      if (!USERNAME_RE.test(name)) {
+        setSubmitting(false);
+        setError("Username must be 3–20 characters: letters, numbers or underscore.");
+        return;
+      }
+      const { data: free, error: checkError } = await supabase.rpc("username_available", { name });
+      if (checkError) {
+        setSubmitting(false);
+        setError("Couldn't check that username. Try again.");
+        return;
+      }
+      if (!free) {
+        setSubmitting(false);
+        setError("That username is taken.");
+        return;
+      }
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: window.location.origin, data: { username: name } },
       });
       setSubmitting(false);
       if (error) {
@@ -142,7 +162,7 @@ export default function AuthGate({ children }) {
   if (session) {
     return (
       <>
-        <SessionBar label={session.user.email} />
+        <SessionBar userId={session.user.id} email={session.user.email} />
         {children}
       </>
     );
@@ -171,6 +191,19 @@ export default function AuthGate({ children }) {
               onChange={(e) => setEmail(e.target.value)}
               style={input}
             />
+            {mode === "signup" && (
+              <input
+                type="text"
+                required
+                minLength={3}
+                maxLength={20}
+                autoComplete="username"
+                placeholder="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                style={input}
+              />
+            )}
             <input
               type="password"
               required
