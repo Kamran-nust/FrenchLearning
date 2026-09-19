@@ -458,6 +458,27 @@ sign-in is instant with no email dependency. Session persists in
 `localStorage` afterward regardless of which method is used, so day-to-day
 this rarely even shows up.
 
+**Usernames and sign-in options (added post-launch).**
+- Signup asks for a username (3–20 chars: letters, digits, underscore),
+  stored in a `profiles` table (`0002_profiles.sql`): case-insensitive
+  unique, RLS read-own, written only by an `auth.users` trigger, so it
+  can't be changed or claimed from the browser. A `username_available()`
+  RPC lets the form say "taken" before the account is created.
+- Sign-in has an Email / Username radio. Email uses Supabase directly.
+  Username goes through the public `sign-in` Edge Function, which resolves
+  the username to an email server-side, signs in, and returns the session;
+  unknown username and wrong password give the same error, so emails and
+  account existence aren't leaked. Caveat: those sign-ins originate from
+  the function's IP, so Supabase's per-IP auth rate limits are shared
+  across everyone signing in by username.
+- A slim top strip (`SessionBar`, mounted in `AuthGate`) shows who is
+  signed in (username, else email) with a Log out button.
+- Accounts created before usernames existed have no profile until one is
+  inserted (see the SQL used for the owner's account).
+- The TTS, writing-feedback and grammar-pages functions now require a
+  signed-in user's token (`_shared/auth.ts`); the public anon key alone
+  gets a 401, so strangers can't spend the shared Gemini/TTS quota.
+
 **Planned upgrade: OAuth (Google sign-in).** Parked for later, same reasoning
 pattern as the TTS/PDF upgrades in §6.1/§9.1 — not something blocking current
 use, worth doing when convenient. Would mean registering an OAuth app in

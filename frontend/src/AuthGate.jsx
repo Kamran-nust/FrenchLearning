@@ -3,6 +3,7 @@ import { supabase } from "./lib/supabaseClient";
 import { installWindowStorage } from "./lib/windowStorage";
 import { installTtsShim } from "./lib/ttsShim";
 import SessionBar from "./SessionBar.jsx";
+import { signInWithUsername } from "./lib/usernameSignIn";
 
 const COLORS = {
   bg: "#0B1220",
@@ -20,6 +21,8 @@ export default function AuthGate({ children }) {
   const [mode, setMode] = useState("signin"); // "signin" | "signup"
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
+  const [loginMethod, setLoginMethod] = useState("email"); // "email" | "username"
+  const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -54,10 +57,15 @@ export default function AuthGate({ children }) {
 
   async function submit(e) {
     e.preventDefault();
-    if (!email.trim() || !password) return;
+    const byUsername = mode === "signin" && loginMethod === "username";
+    if (!(byUsername ? loginName.trim() : email.trim()) || !password) return;
     setSubmitting(true);
     setError("");
-    if (mode === "signin") {
+    if (byUsername) {
+      const message = await signInWithUsername(loginName.trim(), password);
+      setSubmitting(false);
+      if (message) setError(message);
+    } else if (mode === "signin") {
       const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -183,14 +191,48 @@ export default function AuthGate({ children }) {
           </div>
         ) : (
           <form onSubmit={submit}>
-            <input
-              type="email"
-              required
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={input}
-            />
+            {mode === "signin" && (
+              <div style={{ display: "flex", gap: 16, marginBottom: 12, fontSize: 13, color: COLORS.muted }}>
+                {[
+                  ["email", "Email"],
+                  ["username", "Username"],
+                ].map(([value, text]) => (
+                  <label key={value} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="loginMethod"
+                      value={value}
+                      checked={loginMethod === value}
+                      onChange={() => {
+                        setLoginMethod(value);
+                        setError("");
+                      }}
+                    />
+                    {text}
+                  </label>
+                ))}
+              </div>
+            )}
+            {mode === "signin" && loginMethod === "username" ? (
+              <input
+                type="text"
+                required
+                autoComplete="username"
+                placeholder="username"
+                value={loginName}
+                onChange={(e) => setLoginName(e.target.value)}
+                style={input}
+              />
+            ) : (
+              <input
+                type="email"
+                required
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={input}
+              />
+            )}
             {mode === "signup" && (
               <input
                 type="text"
