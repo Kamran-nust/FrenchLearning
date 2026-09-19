@@ -109,6 +109,16 @@ struct HomeView: View {
                     }
                     .padding(.top, 16)
 
+                    // Super users only: manage everyone's tier (the database refuses anyone else too)
+                    if model.tier == .superUser {
+                        Button { model.openAdmin() } label: {
+                            Text("👥 Admin: manage users").font(.system(size: 13, weight: .medium)).foregroundColor(c.muted)
+                                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(c.border))
+                        }
+                        .padding(.top, 14)
+                    }
+
                     Text("~90 minutes a day · Listening · Speaking · Reading · Writing")
                         .font(.system(size: 11)).foregroundColor(c.muted).multilineTextAlignment(.center)
                         .padding(.top, 20)

@@ -14,6 +14,7 @@ Working in this phase (the same scope as the Android app):
 - Signed-in strip with tier (Free / Premium / Super)
 - Four colour themes (same tokens as the web app)
 - Home screen with "Day N complete" progress across all five sections
+- **Admin page (super users only)**: on Home, "Admin: manage users" lists every user with their tier, join date, last sign-in and recent AI-feedback use; search by email or username, count chips per tier, and change a tier from a menu. Your own row is locked, making someone super asks for confirmation first, and the list only changes once the database accepts the change (otherwise the reason is shown). Both database functions refuse anyone who is not a super user, and the last super user can't be removed.
 - **Day-plan PDF download (premium and super)**: the same as the Android app; the PDF is saved through the share sheet ("Save to Files"). Premium 1 per rolling 24 hours, super unlimited, free sees a lock note.
 - **Direct lesson links (premium and super)**: Kwiziq and TV5MONDE chips open the real lesson page when one is known, with extra per-day links, the same as the web app and the Android app; free accounts keep the Google searches.
 - **Grammar chapter PDFs (premium and super)**: the same as the Android app, read in Apple's PDF viewer (pinch to zoom). Free accounts see a lock note.
@@ -23,7 +24,7 @@ Working in this phase (the same scope as the Android app):
 - A read-only day viewer for jumping to any day (with a button to practice that day's flashcards)
 - Unit tests for the plan data, progress and streak logic
 
-Not built yet: the admin page.
+Everything the web app has is now built here.
 
 ## Run it (on a Mac)
 ```bash

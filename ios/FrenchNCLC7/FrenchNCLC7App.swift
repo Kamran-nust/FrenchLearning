@@ -30,6 +30,10 @@ struct RootView: View {
                 if let study = model.study {
                     StudyView(study: study)
                 }
+            case .admin:
+                if let admin = model.admin {
+                    AdminView(a: admin)
+                }
             case .anki:
                 if let anki = model.anki {
                     AnkiView(a: anki)

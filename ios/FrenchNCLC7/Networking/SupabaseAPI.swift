@@ -305,4 +305,25 @@ struct SupabaseAPI {
         guard let reply = try? await call("POST", "/rest/v1/rpc/refund_pdf_download", token: session.accessToken, body: ["p_id": id]) else { return }
         if reply.status == 401 { throw APIError("Session expired.", status: 401) }
     }
+
+    /// Every user with tier and recent activity (super users only; the database refuses anyone else).
+    func adminListUsers(_ session: Session) async throws -> [AdminUser] {
+        let reply = try await call("POST", "/rest/v1/rpc/admin_list_users", token: session.accessToken, body: [:])
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else {
+            throw APIError(message(reply.data, fallback: "Couldn't load users."), status: reply.status)
+        }
+        guard let users = AdminLogic.parseUsers(reply.data) else { throw APIError("Couldn't read the user list.") }
+        return users
+    }
+
+    /// Changes one person's tier (super users only; the database also refuses to remove the last super user).
+    func setUserTier(_ session: Session, userId: String, tier: Tier) async throws {
+        let reply = try await call("POST", "/rest/v1/rpc/set_user_tier", token: session.accessToken,
+                                   body: ["target": userId, "new_tier": tier.rawValue])
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else {
+            throw APIError(message(reply.data, fallback: "Couldn't change the tier."), status: reply.status)
+        }
+    }
 }

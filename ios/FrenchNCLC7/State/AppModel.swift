@@ -14,6 +14,8 @@ enum Screen: Equatable {
     case writing
     /// The Anki flashcards.
     case anki
+    /// Manage users' tiers (super users only).
+    case admin
 }
 
 enum StudyPhase: Equatable {
@@ -116,6 +118,18 @@ struct DayPlanState: Equatable {
     var ready: PdfReady?
 }
 
+struct AdminState: Equatable {
+    /// nil while loading.
+    var users: [AdminUser]?
+    var loadError: String?
+    var query = ""
+    /// People whose tier change is being saved right now.
+    var saving: Set<String> = []
+    var rowErrors: [String: String] = [:]
+    /// Someone about to be made super, waiting for the yes/no.
+    var confirmSuper: AdminUser?
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var screen: Screen = .loading
@@ -132,6 +146,7 @@ final class AppModel: ObservableObject {
     @Published var writing: WritingState?
     @Published var anki: AnkiState?
     @Published var dayPlan = DayPlanState()
+    @Published var admin: AdminState?
 
     let plan = PlanRepository()
     private let api = SupabaseAPI()
@@ -285,6 +300,7 @@ final class AppModel: ObservableObject {
         study = nil
         writing = nil
         anki = nil
+        admin = nil
         authError = nil
         authNotice = nil
         screen = .auth
@@ -337,6 +353,7 @@ final class AppModel: ObservableObject {
         study = nil
         writing = nil
         anki = nil
+        admin = nil
         screen = .home
         if hadStudy { refreshOverview() }
     }
@@ -1019,5 +1036,84 @@ final class AppModel: ObservableObject {
         dayPlan.ready = nil
         try? FileManager.default.removeItem(at: ready.url)
         if !saved { refundPdf(ready.claimId) }
+    }
+
+    // MARK: Admin: manage users' tiers (super users only)
+
+    private func updateAdmin(_ change: (inout AdminState) -> Void) {
+        guard var a = admin else { return }
+        change(&a)
+        admin = a
+    }
+
+    /// Opens the admin page. Only super users get here; the database refuses everyone else anyway.
+    func openAdmin() {
+        guard tier == .superUser else { return }
+        admin = AdminState()
+        screen = .admin
+        loadAdminUsers()
+    }
+
+    func loadAdminUsers() {
+        updateAdmin { $0.loadError = nil }
+        Task { [self] in
+            do {
+                let users = try await authed { try await self.api.adminListUsers($0) }
+                updateAdmin { $0.users = users }
+            } catch {
+                updateAdmin {
+                    $0.users = $0.users ?? []
+                    $0.loadError = "Couldn't load users. " + error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func setAdminQuery(_ query: String) {
+        updateAdmin { $0.query = query }
+    }
+
+    /// A tier was picked for someone. Making someone super asks first; every other change goes straight through.
+    func requestTierChange(_ user: AdminUser, _ newTier: Tier) {
+        if newTier == user.tier { return }
+        if AdminLogic.needsConfirmation(newTier) {
+            updateAdmin { $0.confirmSuper = user }
+        } else {
+            applyTier(user, newTier)
+        }
+    }
+
+    func confirmPromotion() {
+        guard let user = admin?.confirmSuper else { return }
+        updateAdmin { $0.confirmSuper = nil }
+        applyTier(user, .superUser)
+    }
+
+    func cancelPromotion() {
+        updateAdmin { $0.confirmSuper = nil }
+    }
+
+    /// Saves the change; the list only updates once the database has accepted it (otherwise the old tier stays and the reason shows).
+    private func applyTier(_ user: AdminUser, _ newTier: Tier) {
+        updateAdmin {
+            $0.saving.insert(user.userId)
+            $0.rowErrors[user.userId] = nil
+        }
+        Task { [self] in
+            do {
+                try await authed { try await self.api.setUserTier($0, userId: user.userId, tier: newTier) }
+                updateAdmin { a in
+                    a.users = a.users?.map { u in
+                        u.userId == user.userId
+                            ? AdminUser(userId: u.userId, email: u.email, username: u.username, tier: newTier,
+                                        createdAt: u.createdAt, lastSignInAt: u.lastSignInAt, feedbackUsed24h: u.feedbackUsed24h)
+                            : u
+                    }
+                }
+            } catch {
+                updateAdmin { $0.rowErrors[user.userId] = error.localizedDescription }
+            }
+            updateAdmin { _ = $0.saving.remove(user.userId) }
+        }
     }
 }

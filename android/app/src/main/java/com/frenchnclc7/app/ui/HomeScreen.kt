@@ -41,6 +41,7 @@ import com.frenchnclc7.app.AppViewModel
 import com.frenchnclc7.app.UiState
 import com.frenchnclc7.app.data.PlanSection
 import com.frenchnclc7.app.data.TOTAL_DAYS
+import com.frenchnclc7.app.data.Tier
 
 @Composable
 fun HomeScreen(state: UiState, vm: AppViewModel) {
@@ -140,6 +141,16 @@ fun HomeScreen(state: UiState, vm: AppViewModel) {
                     colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.onAccent),
                     modifier = Modifier.height(56.dp),
                 ) { Text("Go") }
+            }
+            // Super users only: manage everyone's tier (the database refuses anyone else too)
+            if (state.tier == Tier.SUPER) {
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "👥 Admin: manage users", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                        .border(BorderStroke(1.dp, c.border), RoundedCornerShape(16.dp))
+                        .clickable { vm.openAdmin() }.padding(vertical = 14.dp),
+                )
             }
             Spacer(Modifier.height(24.dp))
             Text("~90 minutes a day · Listening · Speaking · Reading · Writing", color = c.muted, fontSize = 11.sp, textAlign = TextAlign.Center)

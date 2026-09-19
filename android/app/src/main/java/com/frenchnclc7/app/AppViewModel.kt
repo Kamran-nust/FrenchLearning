@@ -3,6 +3,8 @@ package com.frenchnclc7.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.frenchnclc7.app.data.AdminLogic
+import com.frenchnclc7.app.data.AdminUser
 import com.frenchnclc7.app.data.AnkiLogic
 import com.frenchnclc7.app.data.AnkiSession
 import com.frenchnclc7.app.data.ApiException
@@ -59,6 +61,8 @@ sealed interface Screen {
     data object Writing : Screen
     /** The Anki flashcards. */
     data object Anki : Screen
+    /** Manage users' tiers (super users only). */
+    data object Admin : Screen
 }
 
 enum class StudyPhase { DAY, COMPLETE, FINISHED }
@@ -144,6 +148,18 @@ data class DayPlanState(
     val ready: PdfReady? = null,
 )
 
+data class AdminState(
+    /** null while loading. */
+    val users: List<AdminUser>? = null,
+    val loadError: String? = null,
+    val query: String = "",
+    /** People whose tier change is being saved right now. */
+    val saving: Set<String> = emptySet(),
+    val rowErrors: Map<String, String> = emptyMap(),
+    /** Someone about to be made super, waiting for the yes/no. */
+    val confirmSuper: AdminUser? = null,
+)
+
 data class UiState(
     val screen: Screen = Screen.Loading,
     val session: Session? = null,
@@ -159,6 +175,7 @@ data class UiState(
     val writing: WritingState? = null,
     val anki: AnkiState? = null,
     val dayPlan: DayPlanState = DayPlanState(),
+    val admin: AdminState? = null,
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -327,7 +344,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val hadStudy = _state.value.study != null || _state.value.writing != null || _state.value.anki != null
         flushWriting()
         stopSpeech()
-        _state.update { it.copy(screen = Screen.Home, study = null, writing = null, anki = null) }
+        _state.update { it.copy(screen = Screen.Home, study = null, writing = null, anki = null, admin = null) }
         if (hadStudy) refreshOverview()
     }
 
@@ -887,5 +904,61 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val ready = _state.value.dayPlan.ready ?: return
         updateDayPlan { it.copy(ready = null) }
         refundPdf(ready.claimId)
+    }
+
+    // ---- Admin: manage users' tiers (super users only) --------------------------------------------------
+
+    private fun updateAdmin(change: (AdminState) -> AdminState) {
+        _state.update { ui -> ui.admin?.let { ui.copy(admin = change(it)) } ?: ui }
+    }
+
+    /** Opens the admin page. Only super users get here; the database refuses everyone else anyway. */
+    fun openAdmin() {
+        if (_state.value.tier != Tier.SUPER) return
+        _state.update { it.copy(screen = Screen.Admin, admin = AdminState()) }
+        loadAdminUsers()
+    }
+
+    fun loadAdminUsers() {
+        updateAdmin { it.copy(loadError = null) }
+        viewModelScope.launch {
+            try {
+                val users = authed { api.adminListUsers(it) }
+                updateAdmin { it.copy(users = users) }
+            } catch (e: ApiException) {
+                updateAdmin { it.copy(users = it.users ?: emptyList(), loadError = "Couldn't load users. " + (e.message ?: "")) }
+            }
+        }
+    }
+
+    fun setAdminQuery(query: String) = updateAdmin { it.copy(query = query) }
+
+    /** A tier was picked for someone. Making someone super asks first; every other change goes straight through. */
+    fun requestTierChange(user: AdminUser, tier: Tier) {
+        if (tier == user.tier) return
+        if (AdminLogic.needsConfirmation(tier)) updateAdmin { it.copy(confirmSuper = user) } else applyTier(user, tier)
+    }
+
+    fun confirmPromotion() {
+        val user = _state.value.admin?.confirmSuper ?: return
+        updateAdmin { it.copy(confirmSuper = null) }
+        applyTier(user, Tier.SUPER)
+    }
+
+    fun cancelPromotion() = updateAdmin { it.copy(confirmSuper = null) }
+
+    /** Saves the change; the list only updates once the database has accepted it (otherwise the old tier stays and the reason shows). */
+    private fun applyTier(user: AdminUser, tier: Tier) {
+        updateAdmin { it.copy(saving = it.saving + user.userId, rowErrors = it.rowErrors - user.userId) }
+        viewModelScope.launch {
+            try {
+                authed { api.setUserTier(it, user.userId, tier) }
+                updateAdmin { a -> a.copy(users = a.users?.map { u -> if (u.userId == user.userId) u.copy(tier = tier) else u }) }
+            } catch (e: ApiException) {
+                updateAdmin { it.copy(rowErrors = it.rowErrors + (user.userId to (e.message ?: "Couldn't change the tier."))) }
+            } finally {
+                updateAdmin { it.copy(saving = it.saving - user.userId) }
+            }
+        }
     }
 }

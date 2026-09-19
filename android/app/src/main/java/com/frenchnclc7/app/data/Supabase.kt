@@ -323,4 +323,22 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
         val reply = call("POST", "/rest/v1/rpc/refund_pdf_download", session.accessToken, buildJsonObject { put("p_id", id) })
         if (reply.status == 401) throw ApiException("Session expired.", 401)
     }
+
+    /** Every user with tier and recent activity (super users only; the database refuses anyone else). */
+    suspend fun adminListUsers(session: Session): List<AdminUser> {
+        val reply = call("POST", "/rest/v1/rpc/admin_list_users", session.accessToken, buildJsonObject { })
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) throw ApiException(message(reply, "Couldn't load users."), reply.status)
+        return AdminLogic.parseUsers(reply.body) ?: throw ApiException("Couldn't read the user list.")
+    }
+
+    /** Changes one person's tier (super users only; the database also refuses to remove the last super user). */
+    suspend fun setUserTier(session: Session, userId: String, tier: Tier) {
+        val reply = call("POST", "/rest/v1/rpc/set_user_tier", session.accessToken, buildJsonObject {
+            put("target", userId)
+            put("new_tier", tier.name.lowercase())
+        })
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) throw ApiException(message(reply, "Couldn't change the tier."), reply.status)
+    }
 }
