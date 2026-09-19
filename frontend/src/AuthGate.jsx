@@ -4,15 +4,7 @@ import { installWindowStorage } from "./lib/windowStorage";
 import { installTtsShim } from "./lib/ttsShim";
 import SessionBar from "./SessionBar.jsx";
 import { signInWithUsername } from "./lib/usernameSignIn";
-
-const COLORS = {
-  bg: "#0B1220",
-  card: "#131C2E",
-  border: "#25314A",
-  accent: "#3B82F6",
-  text: "#E8EDF6",
-  muted: "#8291AB",
-};
+import { COLORS } from "./shared/theme.jsx";
 
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 
@@ -159,7 +151,7 @@ export default function AuthGate({ children }) {
               <button type="submit" disabled={submitting} style={button}>
                 {submitting ? "Saving…" : "Save password"}
               </button>
-              {error && <div style={{ color: "#F87171", fontSize: 12, marginTop: 10 }}>{error}</div>}
+              {error && <div style={{ color: COLORS.danger, fontSize: 12, marginTop: 10 }}>{error}</div>}
             </form>
           )}
         </div>
@@ -258,7 +250,7 @@ export default function AuthGate({ children }) {
             <button type="submit" disabled={submitting} style={button}>
               {submitting ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
             </button>
-            {error && <div style={{ color: "#F87171", fontSize: 12, marginTop: 10 }}>{error}</div>}
+            {error && <div style={{ color: COLORS.danger, fontSize: 12, marginTop: 10 }}>{error}</div>}
           </form>
         )}
         {!confirmSent && (
@@ -315,7 +307,7 @@ const button = {
   borderRadius: 10,
   border: "none",
   background: COLORS.accent,
-  color: "#0B1220",
+  color: COLORS.onAccent,
   fontSize: 14,
   fontWeight: 500,
   cursor: "pointer",

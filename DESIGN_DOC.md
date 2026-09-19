@@ -479,6 +479,18 @@ this rarely even shows up.
   signed-in user's token (`_shared/auth.ts`); the public anon key alone
   gets a 401, so strangers can't spend the shared Gemini/TTS quota.
 
+**Colour themes (added post-launch).** Four themes - Midnight (the original
+dark blue), Paper (white), Lavender and Blush - chosen from a Theme menu in
+the top strip. Every colour is a named token (`COLORS.bg`, `COLORS.accent`,
+`COLORS.onAccent`, `COLORS.danger`, ...) that resolves to a CSS variable;
+each theme in `shared/themes.js` supplies the values, so switching just
+changes a `data-theme` attribute and the whole app repaints with no
+component changes. Adding a theme means adding one object to `THEMES`. The
+choice is saved on the device (applied before first paint, so no flash) and
+on the account (`theme` key) so it follows the user across devices. All
+text/background pairs in every theme were checked to meet WCAG AA (4.5:1).
+Rule for new UI: use tokens from `COLORS`, never hardcoded hex colours.
+
 **Planned upgrade: OAuth (Google sign-in).** Parked for later, same reasoning
 pattern as the TTS/PDF upgrades in §6.1/§9.1 — not something blocking current
 use, worth doing when convenient. Would mean registering an OAuth app in

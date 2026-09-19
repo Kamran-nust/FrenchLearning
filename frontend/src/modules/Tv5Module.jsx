@@ -130,7 +130,7 @@ export default function Tv5Module({ onBack, startDay }) {
           </div>
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: COLORS.accentSoft }}>
-          <Flame size={14} color={progress.streak_count > 0 ? "#F59E0B" : COLORS.muted} />
+          <Flame size={14} color={progress.streak_count > 0 ? COLORS.hard : COLORS.muted} />
           <span className="text-xs font-medium" style={{ color: progress.streak_count > 0 ? COLORS.text : COLORS.muted }}>
             {progress.streak_count}
           </span>
@@ -155,7 +155,7 @@ export default function Tv5Module({ onBack, startDay }) {
       ) : (
         <div className="flex items-center justify-center gap-3 text-xs p-3 rounded-xl" style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}>
           <span style={{ color: COLORS.text }}>Erase all saved progress?</span>
-          <button onClick={doReset} className="font-medium" style={{ color: "#F87171" }}>
+          <button onClick={doReset} className="font-medium" style={{ color: COLORS.danger }}>
             Yes, reset
           </button>
           <button onClick={() => setConfirmingReset(false)} style={{ color: COLORS.muted }}>
@@ -215,7 +215,7 @@ export default function Tv5Module({ onBack, startDay }) {
           <div className="text-sm mb-6" style={{ color: COLORS.muted }}>
             {completionInfo.remaining} days left · streak {completionInfo.streak}
           </div>
-          <button onClick={continueNext} className="px-6 py-3 rounded-xl text-sm font-medium" style={{ background: COLORS.accent, color: "#0B1220" }}>
+          <button onClick={continueNext} className="px-6 py-3 rounded-xl text-sm font-medium" style={{ background: COLORS.accent, color: COLORS.onAccent }}>
             Start next day
           </button>
         </div>
@@ -244,7 +244,7 @@ export default function Tv5Module({ onBack, startDay }) {
 
       {!storageOk && (
         <div className="w-full max-w-md mx-auto px-5 mb-2">
-          <div className="text-xs px-3 py-2 rounded-lg" style={{ background: COLORS.hardSoft, color: "#F5C77E" }}>
+          <div className="text-xs px-3 py-2 rounded-lg" style={{ background: COLORS.hardSoft, color: COLORS.warnText }}>
             Progress isn't saving right now — it may be lost if you reload.
           </div>
         </div>
@@ -281,7 +281,7 @@ export default function Tv5Module({ onBack, startDay }) {
               {viewed.l && (
                 <span
                   className="text-xs px-2.5 py-1 rounded-full font-medium"
-                  style={{ background: COLORS.accentSoft, color: "#93C5FD" }}
+                  style={{ background: COLORS.accentSoft, color: COLORS.link }}
                 >
                   {viewed.l}
                 </span>
@@ -297,7 +297,7 @@ export default function Tv5Module({ onBack, startDay }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
-                    style={{ background: COLORS.accentSoft, color: "#93C5FD" }}
+                    style={{ background: COLORS.accentSoft, color: COLORS.link }}
                   >
                     <Tv size={12} className="shrink-0" />
                     <span className="flex-1 truncate">{chip}</span>
@@ -327,7 +327,7 @@ export default function Tv5Module({ onBack, startDay }) {
             <button
               onClick={completeDay}
               className="w-full mt-4 py-3.5 rounded-xl text-sm font-medium"
-              style={{ background: COLORS.accent, color: "#0B1220" }}
+              style={{ background: COLORS.accent, color: COLORS.onAccent }}
             >
               Mark day complete
             </button>

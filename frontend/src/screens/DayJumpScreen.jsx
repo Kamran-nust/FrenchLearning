@@ -73,7 +73,7 @@ export default function DayJumpScreen({ onBack, onSelectSection }) {
             className="flex-1 text-sm rounded-lg px-3 py-2.5"
             style={{ background: COLORS.card, border: "1px solid " + COLORS.border, color: COLORS.text }}
           />
-          <button onClick={go} className="px-5 rounded-lg text-sm font-medium" style={{ background: COLORS.accent, color: "#0B1220" }}>
+          <button onClick={go} className="px-5 rounded-lg text-sm font-medium" style={{ background: COLORS.accent, color: COLORS.onAccent }}>
             Go
           </button>
         </div>

@@ -21,7 +21,7 @@ function RibbonDivider() {
       <path
         d="M0 24 C 80 4, 140 28, 200 12 S 340 -2, 400 14"
         fill="none"
-        stroke="#EDE7DA"
+        stroke={COLORS.stripe}
         strokeWidth="3"
         strokeLinecap="round"
         opacity="0.55"

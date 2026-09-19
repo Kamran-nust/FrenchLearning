@@ -157,7 +157,7 @@ export default function GrammarModule({ onBack, startDay }) {
           </div>
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: COLORS.accentSoft }}>
-          <Flame size={14} color={progress.streak_count > 0 ? "#F59E0B" : COLORS.muted} />
+          <Flame size={14} color={progress.streak_count > 0 ? COLORS.hard : COLORS.muted} />
           <span className="text-xs font-medium" style={{ color: progress.streak_count > 0 ? COLORS.text : COLORS.muted }}>
             {progress.streak_count}
           </span>
@@ -182,7 +182,7 @@ export default function GrammarModule({ onBack, startDay }) {
       ) : (
         <div className="flex items-center justify-center gap-3 text-xs p-3 rounded-xl" style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}>
           <span style={{ color: COLORS.text }}>Erase all saved progress?</span>
-          <button onClick={doReset} className="font-medium" style={{ color: "#F87171" }}>
+          <button onClick={doReset} className="font-medium" style={{ color: COLORS.danger }}>
             Yes, reset
           </button>
           <button onClick={() => setConfirmingReset(false)} style={{ color: COLORS.muted }}>
@@ -268,7 +268,7 @@ export default function GrammarModule({ onBack, startDay }) {
           <div className="text-sm mb-6" style={{ color: COLORS.muted }}>
             {completionInfo.remaining} days left · streak {completionInfo.streak}
           </div>
-          <button onClick={continueNext} className="px-6 py-3 rounded-xl text-sm font-medium" style={{ background: COLORS.accent, color: "#0B1220" }}>
+          <button onClick={continueNext} className="px-6 py-3 rounded-xl text-sm font-medium" style={{ background: COLORS.accent, color: COLORS.onAccent }}>
             Start next day
           </button>
         </div>
@@ -295,7 +295,7 @@ export default function GrammarModule({ onBack, startDay }) {
 
       {!storageOk && (
         <div className="w-full max-w-md mx-auto px-5 mb-2">
-          <div className="text-xs px-3 py-2 rounded-lg" style={{ background: COLORS.hardSoft, color: "#F5C77E" }}>
+          <div className="text-xs px-3 py-2 rounded-lg" style={{ background: COLORS.hardSoft, color: COLORS.warnText }}>
             Progress isn't saving right now — it may be lost if you reload.
           </div>
         </div>
@@ -356,14 +356,14 @@ export default function GrammarModule({ onBack, startDay }) {
                   onClick={() => openChapterPages(g.book, g.chapters)}
                   disabled={pdfLoading}
                   className="w-full py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2"
-                  style={{ background: COLORS.accentSoft, color: "#93C5FD", opacity: pdfLoading ? 0.6 : 1 }}
+                  style={{ background: COLORS.accentSoft, color: COLORS.link, opacity: pdfLoading ? 0.6 : 1 }}
                 >
                   <BookOpen size={14} />
                   {pdfLoading ? "Loading pages…" : "Open " + g.book + " ch. " + g.chapters.join(", ")}
                 </button>
               ))}
               {pdfError && (
-                <div className="text-xs text-center" style={{ color: "#F87171" }}>
+                <div className="text-xs text-center" style={{ color: COLORS.danger }}>
                   {pdfError}
                 </div>
               )}
@@ -374,7 +374,7 @@ export default function GrammarModule({ onBack, startDay }) {
             <button
               onClick={completeDay}
               className="w-full mt-4 py-3.5 rounded-xl text-sm font-medium"
-              style={{ background: COLORS.accent, color: "#0B1220" }}
+              style={{ background: COLORS.accent, color: COLORS.onAccent }}
             >
               Mark day complete
             </button>

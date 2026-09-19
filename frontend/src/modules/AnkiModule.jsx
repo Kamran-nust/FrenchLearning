@@ -392,7 +392,7 @@ export default function AnkiModule({ onBack, startDay }) {
           </div>
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: COLORS.accentSoft }}>
-          <Flame size={14} color={progress.streak_count > 0 ? "#F59E0B" : COLORS.muted} />
+          <Flame size={14} color={progress.streak_count > 0 ? COLORS.hard : COLORS.muted} />
           <span className="text-xs font-medium" style={{ color: progress.streak_count > 0 ? COLORS.text : COLORS.muted }}>
             {progress.streak_count}
           </span>
@@ -427,7 +427,7 @@ export default function AnkiModule({ onBack, startDay }) {
           style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}
         >
           <span style={{ color: COLORS.text }}>Erase all saved progress?</span>
-          <button onClick={doReset} className="font-medium" style={{ color: "#F87171" }}>
+          <button onClick={doReset} className="font-medium" style={{ color: COLORS.danger }}>
             Yes, reset
           </button>
           <button onClick={() => setConfirmingReset(false)} style={{ color: COLORS.muted }}>
@@ -483,7 +483,7 @@ export default function AnkiModule({ onBack, startDay }) {
           <button
             onClick={continueToNextDay}
             className="px-6 py-3 rounded-xl text-sm font-medium transition-colors"
-            style={{ background: COLORS.accent, color: "#0B1220" }}
+            style={{ background: COLORS.accent, color: COLORS.onAccent }}
           >
             Start next day
           </button>
@@ -528,7 +528,7 @@ export default function AnkiModule({ onBack, startDay }) {
         <div className="w-full max-w-md mx-auto px-5 mb-2">
           <div
             className="text-xs px-3 py-2 rounded-lg"
-            style={{ background: COLORS.hardSoft, color: "#F5C77E" }}
+            style={{ background: COLORS.hardSoft, color: COLORS.warnText }}
           >
             <div className="flex items-center justify-between gap-2">
               <span>Progress isn't saving right now — it may be lost if you reload.</span>
@@ -563,7 +563,7 @@ export default function AnkiModule({ onBack, startDay }) {
           <div className="flex items-center justify-between mb-2 px-1">
             <span
               className="text-xs px-2.5 py-1 rounded-full"
-              style={{ background: COLORS.accentSoft, color: "#93C5FD" }}
+              style={{ background: COLORS.accentSoft, color: COLORS.link }}
             >
               {directionLabel}
             </span>
@@ -648,7 +648,7 @@ export default function AnkiModule({ onBack, startDay }) {
               className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
               style={{ background: COLORS.accent }}
             >
-              {isLast ? <Check size={18} color="#0B1220" /> : <ChevronRight size={18} color="#0B1220" />}
+              {isLast ? <Check size={18} color={COLORS.onAccent} /> : <ChevronRight size={18} color={COLORS.onAccent} />}
             </button>
           </div>
 
