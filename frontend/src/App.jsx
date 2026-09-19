@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import GrammarModule from "./modules/GrammarModule.jsx";
 import KwiziqModule from "./modules/KwiziqModule.jsx";
 import Tv5Module from "./modules/Tv5Module.jsx";
@@ -9,6 +9,8 @@ import LevelsScreen from "./screens/LevelsScreen.jsx";
 import LevelDetailScreen from "./screens/LevelDetailScreen.jsx";
 import DayJumpScreen from "./screens/DayJumpScreen.jsx";
 import AdminScreen from "./screens/AdminScreen.jsx";
+import PlansScreen from "./screens/PlansScreen.jsx";
+import { OPEN_PLANS_EVENT } from "./shared/plans";
 
 export default function App() {
   const [screen, setScreen] = useState("home");
@@ -17,6 +19,13 @@ export default function App() {
   const [jumpDay, setJumpDay] = useState(null);
   // The day picked on the "Jump to a day" screen, kept so that coming back from a section shows that day again.
   const [jumpChosenDay, setJumpChosenDay] = useState(null);
+
+  // The "Go Premium" pill in the top bar (outside this component) asks for the Plans page with an event.
+  useEffect(() => {
+    const open = () => setScreen("plans");
+    window.addEventListener(OPEN_PLANS_EVENT, open);
+    return () => window.removeEventListener(OPEN_PLANS_EVENT, open);
+  }, []);
 
   function openSection(id, fromScreen, day) {
     setJumpDay(day || null);
@@ -31,6 +40,7 @@ export default function App() {
         onBrowseLevels={() => setScreen("levels")}
         onJumpToDay={() => setScreen("day-jump")}
         onOpenAdmin={() => setScreen("admin")}
+        onOpenPlans={() => setScreen("plans")}
       />
     );
   }
@@ -66,6 +76,9 @@ export default function App() {
         onSelectSection={(id, day) => openSection(id, "day-jump", day)}
       />
     );
+  }
+  if (screen === "plans") {
+    return <PlansScreen onBack={() => setScreen("home")} />;
   }
   if (screen === "admin") {
     return <AdminScreen onBack={() => setScreen("home")} />;

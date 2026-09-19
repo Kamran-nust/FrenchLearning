@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowRight, Lock, Layers, Calendar, Check, Users } from "lucide-react";
+import { ArrowRight, Lock, Layers, Calendar, Check, Users, Sparkles } from "lucide-react";
 import Gate from "../Gate.jsx";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { SECTIONS } from "../shared/navigationConfig";
@@ -99,7 +99,7 @@ function CornerFlourish({ side }) {
   );
 }
 
-export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDay, onOpenAdmin }) {
+export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDay, onOpenAdmin, onOpenPlans }) {
   const [completedThrough, setCompletedThrough] = useState(null); // null = loading or unavailable
 
   useEffect(() => {
@@ -265,6 +265,16 @@ export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDa
               </div>
             </button>
           </div>
+          {onOpenPlans && (
+            <button
+              onClick={onOpenPlans}
+              className="w-full mt-2.5 flex items-center justify-center gap-2 p-3 rounded-2xl text-sm font-medium"
+              style={{ background: COLORS.card, border: "1px solid " + COLORS.border, color: COLORS.text }}
+            >
+              <Sparkles size={16} color={COLORS.accent} />
+              Plans and pricing
+            </button>
+          )}
           <Gate feature="adminPanel">
             <button
               onClick={onOpenAdmin}

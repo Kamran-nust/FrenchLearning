@@ -5,6 +5,7 @@ import { COLORS } from "./shared/theme.jsx";
 import ThemePicker from "./ThemePicker.jsx";
 import { useTier } from "./TierContext.jsx";
 import { TIER_LABELS } from "./shared/tiers";
+import { OPEN_PLANS_EVENT } from "./shared/plans";
 
 export default function SessionBar({ userId, email }) {
   const [signingOut, setSigningOut] = useState(false);
@@ -49,6 +50,15 @@ export default function SessionBar({ userId, email }) {
           <span className="truncate">
             Signed in as <strong style={{ color: COLORS.text, fontWeight: 500 }}>{label}</strong>
           </span>
+          {!loading && tier === "free" && (
+            <button
+              onClick={() => window.dispatchEvent(new Event(OPEN_PLANS_EVENT))}
+              className="shrink-0 px-2 py-0.5 rounded-full"
+              style={{ fontSize: 10, fontWeight: 600, background: COLORS.accent, color: COLORS.onAccent }}
+            >
+              Go Premium
+            </button>
+          )}
           {!loading && (
             <span
               className="shrink-0 px-2 py-0.5 rounded-full"
