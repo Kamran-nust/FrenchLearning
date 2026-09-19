@@ -13,6 +13,7 @@ export const TIER_LABELS = { free: "Free", premium: "Premium", super: "Super" };
 export const FEATURES = {
   grammarPdf: "premium", // grammar chapter-excerpt PDFs
   adminPanel: "super", // user/tier management page
+  dayPlanPdf: "premium", // download a day's plan as a PDF (premium limited per day, super unlimited)
   directLessonLinks: "premium", // Kwiziq/TV5 chips open the real lesson page instead of a Google search
 };
 

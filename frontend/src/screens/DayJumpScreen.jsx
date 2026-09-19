@@ -6,6 +6,7 @@ import { GRAMMAR_DAYS } from "../data/grammarDays";
 import { KWIZIQ_DAYS } from "../data/kwiziqDays";
 import { TV5_DAYS } from "../data/tv5Days";
 import { WRITING_DAYS } from "../data/writingDays";
+import DayPlanDownload from "../DayPlanDownload.jsx";
 
 const TOTAL_DAYS = DAYS.length;
 
@@ -89,6 +90,11 @@ export default function DayJumpScreen({ onBack, onSelectSection }) {
             {previewRow(PenLine, "Kwiziq", "kwiziq", kwiziqDay.x)}
             {previewRow(Tv, "TV5MONDE", "tv5monde", (tv5Day.l ? tv5Day.l + " — " : "") + tv5Day.x.replace(/^(Première classe|A1-A2|A2-B1|B1-B2|A1|A2|B1|B2)\s*:\s*/, ""))}
             {previewRow(FileEdit, "Writing", "writing", writingDay.x)}
+            <DayPlanDownload
+              day={chosenDay}
+              plan={{ anki: ankiDay, grammar: grammarDay, kwiziq: kwiziqDay, tv5: tv5Day, writing: writingDay }}
+            />
+
           </div>
         )}
       </div>

@@ -621,3 +621,19 @@ All three open questions from the earlier draft are now resolved:
 
 Design is locked in for Phase 1 (Anki module). Ready to build whenever
 you give the heads-up.
+
+**Day plan PDF download (premium and super).** At the bottom of the "Jump to a
+day" screen, premium and super users get a "Download Day N plan (PDF)" button
+(`FEATURES.dayPlanPdf`; free users see a locked note). The PDF is built in the
+browser with jsPDF, loaded only on demand: an A4 print-friendly page with the
+day's Anki cards (French/English table), grammar-book task, Kwiziq and TV5
+lessons (clickable, direct links where they exist), and writing task, with a
+tick box per section. Limit: premium 1 per rolling 24 hours, super unlimited,
+free 0 - the numbers live in the `pdf_limits` table (`0008_pdf_download_limits.sql`;
+NULL = unlimited), e.g. `update pdf_limits set downloads_per_day = 2 where tier = 'premium';`.
+Enforced in the database, not the browser: the page first calls
+`claim_pdf_download(day)` (atomic, per-user lock) and only builds the PDF if it
+returns a ticket. Any download counts, including re-downloading the same day.
+If PDF creation fails, `refund_pdf_download` hands the download back (only the
+caller's own, within 2 minutes). Premium users see a plain button; only after
+using it does it grey out with "Available again in Xh Ym".
