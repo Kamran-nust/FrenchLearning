@@ -108,15 +108,8 @@ export async function buildDayPlanPdf({ day, week, sections }) {
         ensure(lines.length * 5.2 + 2);
         doc.setFillColor(BLUE[0], BLUE[1], BLUE[2]);
         doc.circle(MARGIN + 1.2, y - 1.3, 0.7, "F");
-        lines.forEach((line, i) => {
-          if (l.url) {
-            setColor(BLUE);
-            doc.textWithLink(line, MARGIN + 5, y + i * 5.2, { url: l.url });
-          } else {
-            setColor(INK);
-            doc.text(line, MARGIN + 5, y + i * 5.2);
-          }
-        });
+        setColor(INK);
+        doc.text(lines, MARGIN + 5, y, { lineHeightFactor: 1.45 });
         y += lines.length * 5.2 + 1.6;
       }
     }

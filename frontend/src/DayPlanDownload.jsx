@@ -3,12 +3,8 @@ import { FileDown, Lock, Loader2 } from "lucide-react";
 import Gate from "./Gate.jsx";
 import { COLORS } from "./shared/theme.jsx";
 import { splitLessonChips } from "./shared/textHelpers";
-import { useLessonLinks } from "./lib/lessonLinks";
 import { fetchPdfQuota, claimPdfDownload, refundPdfDownload } from "./lib/pdfDownloads";
 import { buildDayPlanPdf } from "./lib/dayPlanPdf";
-
-const kwiziqSearch = (t) => "https://www.google.com/search?q=" + encodeURIComponent("site:french.kwiziq.com " + t);
-const tv5Search = (t) => "https://www.google.com/search?q=" + encodeURIComponent("site:tv5monde.com " + t);
 
 function waitText(resetsAt) {
   const mins = Math.max(1, Math.ceil((new Date(resetsAt).getTime() - Date.now()) / 60000));
@@ -17,8 +13,6 @@ function waitText(resetsAt) {
 }
 
 function Inner({ day, plan }) {
-  const kwiziq = useLessonLinks("kwiziq");
-  const tv5 = useLessonLinks("tv5");
   const [quota, setQuota] = useState(null); // null = loading or unreadable
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -54,24 +48,15 @@ function Inner({ day, plan }) {
       return;
     }
     try {
-      const chips = (text, links, search) =>
-        splitLessonChips(text).map((c) => ({ label: c, url: links.get(c) || search(c) }));
-      const extra = (map) => (map.get(day) || []).map((e) => ({ label: e.label, url: e.url }));
+      const chips = (text) => splitLessonChips(text).map((c) => ({ label: c }));
       await buildDayPlanPdf({
         day,
         week: Math.ceil(day / 7),
         sections: [
           { title: "Anki", note: plan.anki.c.length + " new cards", cards: plan.anki.c },
           { title: "Grammar book", text: plan.grammar.x },
-          { title: "Kwiziq", links: [...chips(plan.kwiziq.x, kwiziq.links, kwiziqSearch), ...extra(kwiziq.extras)] },
-          {
-            title: "TV5MONDE",
-            links: [
-              ...(plan.tv5.l ? [{ label: plan.tv5.l }] : []),
-              ...chips(plan.tv5.x, tv5.links, tv5Search),
-              ...extra(tv5.extras),
-            ],
-          },
+          { title: "Kwiziq", links: chips(plan.kwiziq.x) },
+          { title: "TV5MONDE", links: [...(plan.tv5.l ? [{ label: plan.tv5.l }] : []), ...chips(plan.tv5.x)] },
           { title: "Writing", text: plan.writing.x },
         ],
       });

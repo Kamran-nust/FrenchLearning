@@ -627,7 +627,7 @@ day" screen, premium and super users get a "Download Day N plan (PDF)" button
 (`FEATURES.dayPlanPdf`; free users see a locked note). The PDF is built in the
 browser with jsPDF, loaded only on demand: an A4 print-friendly page with the
 day's Anki cards (French/English table), grammar-book task, Kwiziq and TV5
-lessons (clickable, direct links where they exist), and writing task, with a
+lessons (plain text, no links), and writing task, with a
 tick box per section. Limit: premium 1 per rolling 24 hours, super unlimited,
 free 0 - the numbers live in the `pdf_limits` table (`0008_pdf_download_limits.sql`;
 NULL = unlimited), e.g. `update pdf_limits set downloads_per_day = 2 where tier = 'premium';`.
