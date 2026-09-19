@@ -11,7 +11,12 @@ import com.frenchnclc7.app.data.ApiException
 import com.frenchnclc7.app.data.CardStat
 import com.frenchnclc7.app.data.SpeechPlayer
 import com.frenchnclc7.app.data.AppRead
+import com.frenchnclc7.app.data.BillingPeriod
 import com.frenchnclc7.app.data.BookChapters
+import com.frenchnclc7.app.data.NotConfiguredBilling
+import com.frenchnclc7.app.data.PlansLogic
+import com.frenchnclc7.app.data.PlayBilling
+import com.frenchnclc7.app.data.PurchaseResult
 import com.frenchnclc7.app.data.DayPlanLogic
 import com.frenchnclc7.app.data.DayPlanPdf
 import com.frenchnclc7.app.data.PdfQuota
@@ -63,6 +68,8 @@ sealed interface Screen {
     data object Anki : Screen
     /** Manage users' tiers (super users only). */
     data object Admin : Screen
+    /** Free versus Premium, with monthly/yearly. */
+    data object Plans : Screen
 }
 
 enum class StudyPhase { DAY, COMPLETE, FINISHED }
@@ -148,6 +155,12 @@ data class DayPlanState(
     val ready: PdfReady? = null,
 )
 
+data class PlansState(
+    val period: BillingPeriod = BillingPeriod.YEARLY,
+    val busy: Boolean = false,
+    val message: String? = null,
+)
+
 data class AdminState(
     /** null while loading. */
     val users: List<AdminUser>? = null,
@@ -176,6 +189,7 @@ data class UiState(
     val anki: AnkiState? = null,
     val dayPlan: DayPlanState = DayPlanState(),
     val admin: AdminState? = null,
+    val plans: PlansState = PlansState(),
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -960,6 +974,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun updateAdmin(change: (AdminState) -> AdminState) {
         _state.update { ui -> ui.admin?.let { ui.copy(admin = change(it)) } ?: ui }
+    }
+
+    // ---- Plans (Premium subscription) ----
+
+    /** Google Play Billing sits behind this; [NotConfiguredBilling] until the Play Console products exist. */
+    private val billing: PlayBilling = NotConfiguredBilling
+
+    fun openPlans() {
+        returnTo = null
+        _state.update { it.copy(screen = Screen.Plans, plans = PlansState(period = it.plans.period)) }
+    }
+
+    fun setPlanPeriod(period: BillingPeriod) = _state.update { it.copy(plans = it.plans.copy(period = period, message = null)) }
+
+    fun upgrade() = runBilling { billing.purchase(_state.value.plans.period) }
+
+    fun manageSubscription() = runBilling { billing.manage() }
+
+    private fun runBilling(action: suspend () -> PurchaseResult) {
+        _state.update { it.copy(plans = it.plans.copy(busy = true, message = null)) }
+        viewModelScope.launch {
+            val message = when (action()) {
+                PurchaseResult.NotConfigured -> PlansLogic.NOT_SWITCHED_ON
+                PurchaseResult.Failed -> PlansLogic.PURCHASE_FAILED
+            }
+            _state.update { it.copy(plans = it.plans.copy(busy = false, message = message)) }
+        }
     }
 
     /** Opens the admin page. Only super users get here; the database refuses everyone else anyway. */

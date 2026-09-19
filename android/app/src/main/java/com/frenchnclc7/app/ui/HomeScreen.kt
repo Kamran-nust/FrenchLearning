@@ -58,6 +58,14 @@ fun HomeScreen(state: UiState, vm: AppViewModel) {
                 "Signed in as " + (state.username ?: state.session?.email ?: ""),
                 color = c.muted, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1,
             )
+            if (state.tier == Tier.FREE) {
+                Text(
+                    "Go Premium", color = c.onAccent, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(c.accent).clickable { vm.openPlans() }
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+            }
             Text(
                 state.tier.label, color = c.link, fontSize = 11.sp, fontWeight = FontWeight.Medium,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(c.accentSoft).padding(horizontal = 8.dp, vertical = 3.dp),
@@ -142,6 +150,13 @@ fun HomeScreen(state: UiState, vm: AppViewModel) {
                     modifier = Modifier.height(56.dp),
                 ) { Text("Go") }
             }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Plans and pricing", color = c.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .border(BorderStroke(1.dp, c.border), RoundedCornerShape(16.dp))
+                    .clickable { vm.openPlans() }.padding(vertical = 14.dp),
+            )
             // Super users only: manage everyone's tier (the database refuses anyone else too)
             if (state.tier == Tier.SUPER) {
                 Spacer(Modifier.height(14.dp))
