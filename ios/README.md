@@ -9,6 +9,8 @@ Store needs a paid Apple Developer account.
 
 ## Status: foundation (phase 1)
 
+Jump to a day: Back from a section opened via a day page returns to that day page (written, not yet compiled).
+
 Working in this phase (the same scope as the Android app):
 - Sign in with email or username, create an account, log out (session kept in the iOS Keychain)
 - Signed-in strip with tier (Free / Premium / Super)

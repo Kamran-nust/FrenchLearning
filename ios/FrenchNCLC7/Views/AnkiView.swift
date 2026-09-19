@@ -36,7 +36,7 @@ struct AnkiView: View {
         }
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Button { model.goHome() } label: {
+                Button { model.goBack() } label: {
                     Text("‹").font(.system(size: 24)).foregroundColor(c.muted)
                 }
                 Text(title).font(.system(size: 12)).foregroundColor(c.muted)

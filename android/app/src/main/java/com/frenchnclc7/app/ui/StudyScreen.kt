@@ -1,6 +1,5 @@
 package com.frenchnclc7.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,7 +44,6 @@ import com.frenchnclc7.app.data.TOTAL_DAYS
 fun StudyScreen(study: StudyState, tier: Tier, vm: AppViewModel) {
     val c = LocalColors.current
     // Back closes an open PDF first, then leaves the section.
-    BackHandler { if (study.pdfViewer != null) vm.closeGrammarPdf() else vm.home() }
 
     study.pdfViewer?.let { viewer ->
         PdfViewerScreen(viewer) { vm.closeGrammarPdf() }
@@ -70,7 +68,7 @@ fun StudyScreen(study: StudyState, tier: Tier, vm: AppViewModel) {
         // Header: back, where you are, streak, progress bar
         Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("‹", color = c.muted, fontSize = 24.sp, modifier = Modifier.clickable { vm.home() }.padding(end = 10.dp))
+                Text("‹", color = c.muted, fontSize = 24.sp, modifier = Modifier.clickable { vm.back() }.padding(end = 10.dp))
                 Text(
                     if (finished) section.title + " plan complete" else "${section.title} · Day ${study.viewDay} of $TOTAL_DAYS",
                     color = c.muted, fontSize = 12.sp, modifier = Modifier.weight(1f),

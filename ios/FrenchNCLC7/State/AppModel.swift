@@ -321,6 +321,12 @@ final class AppModel: ObservableObject {
 
     /// Opens a section on a day. Grammar, Kwiziq, TV5MONDE and Writing use the study screen; Anki the read-only viewer.
     func open(_ section: PlanSection, day: Int? = nil) {
+        // Remember where we came from: from a day page, Back returns to that day; from Home, Back returns to Home.
+        switch screen {
+        case .day(_, let here): returnTo = .day(section, here)
+        case .home: returnTo = nil
+        default: break // moving between sections keeps what was remembered
+        }
         if section == .anki {
             flushWriting()
             openAnki(practiceDay: day)
@@ -341,18 +347,45 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Home. Also re-reads the overall progress so "Day N complete" reflects what was just done.
-    /// The read-only day viewer (Home's "Jump to a day").
-    func browseDay(_ day: Int) {
+    /// The day page a section was opened from (Home's "Jump to a day"). Back from that section returns here,
+    /// with that section selected. Nil when the section was opened straight from Home.
+    private var returnTo: Screen?
+
+    /// The read-only day viewer (Home's "Jump to a day"). Moving to another day keeps the section that is
+    /// showing; pass `section` to switch to a different one.
+    func browseDay(_ day: Int, section: PlanSection? = nil) {
+        flushWriting()
+        stopSpeech()
+        var shown = section ?? .anki
+        if section == nil, case .day(let current, _) = screen { shown = current }
+        study = nil
+        writing = nil
+        anki = nil
+        screen = .day(shown, clampDay(day))
+    }
+
+    /// Back from a section (Grammar, Kwiziq, TV5MONDE, Writing, Anki): to the day page it was opened from if it
+    /// was opened from one, otherwise Home.
+    func goBack() {
+        guard let target = returnTo else {
+            goHome()
+            return
+        }
+        returnTo = nil
+        let hadStudy = study != nil || writing != nil || anki != nil
         flushWriting()
         stopSpeech()
         study = nil
         writing = nil
         anki = nil
-        screen = .day(.anki, clampDay(day))
+        admin = nil
+        screen = target
+        if hadStudy { refreshOverview() }
     }
 
+    /// Home. Also re-reads the overall progress so "Day N complete" reflects what was just done.
     func goHome() {
+        returnTo = nil
         let hadStudy = study != nil || writing != nil || anki != nil
         flushWriting()
         stopSpeech()

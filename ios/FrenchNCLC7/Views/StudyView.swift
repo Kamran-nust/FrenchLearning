@@ -32,7 +32,7 @@ struct StudyView: View {
         let finished = study.phase == .finished
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Button { model.goHome() } label: {
+                Button { model.goBack() } label: {
                     Text("‹").font(.system(size: 24)).foregroundColor(c.muted)
                 }
                 Text(finished ? study.section.title + " plan complete"

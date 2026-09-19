@@ -317,14 +317,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Navigation -------------------------------------------------------------------------
 
     /** Opens a section on a day. Grammar, Kwiziq, TV5MONDE and Writing use the study screen; Anki the read-only viewer. */
-    /** The read-only day viewer (Home's "Jump to a day"). */
-    fun browseDay(day: Int) {
+    /**
+     * The day page a section was opened from (Home's "Jump to a day"): Back from that section returns here,
+     * with that section selected. Null when the section was opened straight from Home.
+     */
+    private var returnTo: Screen.Day? = null
+
+    /**
+     * The read-only day viewer (Home's "Jump to a day"). Moving to another day keeps the section that is
+     * showing; pass [section] to switch to a different one.
+     */
+    fun browseDay(day: Int, section: PlanSection? = null) {
         flushWriting()
         stopSpeech()
-        _state.update { it.copy(screen = Screen.Day(PlanSection.ANKI, day.coerceIn(1, TOTAL_DAYS)), study = null, writing = null, anki = null) }
+        val shown = section ?: (_state.value.screen as? Screen.Day)?.section ?: PlanSection.ANKI
+        _state.update { it.copy(screen = Screen.Day(shown, day.coerceIn(1, TOTAL_DAYS)), study = null, writing = null, anki = null) }
     }
 
     fun open(section: PlanSection, day: Int? = null) {
+        // Remember where we came from: from a day page, Back returns to that day; from Home, Back returns to Home.
+        when (val here = _state.value.screen) {
+            is Screen.Day -> returnTo = Screen.Day(section, here.day)
+            Screen.Home -> returnTo = null
+            else -> {} // moving between sections keeps what was remembered
+        }
         if (section == PlanSection.ANKI) {
             flushWriting()
             openAnki(day)
@@ -345,8 +361,36 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** The system Back button/gesture, decided from whichever screen is showing. */
+    fun systemBack() {
+        when (_state.value.screen) {
+            Screen.Study -> if (_state.value.study?.pdfViewer != null) closeGrammarPdf() else back()
+            Screen.Writing, Screen.Anki -> back()
+            else -> home()
+        }
+    }
+
+    /**
+     * Back from a section (Grammar, Kwiziq, TV5MONDE, Writing, Anki): to the day page it was opened from if it
+     * was opened from one, otherwise Home.
+     */
+    fun back() {
+        val target = returnTo
+        if (target == null) {
+            home()
+            return
+        }
+        returnTo = null
+        val hadStudy = _state.value.study != null || _state.value.writing != null || _state.value.anki != null
+        flushWriting()
+        stopSpeech()
+        _state.update { it.copy(screen = target, study = null, writing = null, anki = null, admin = null) }
+        if (hadStudy) refreshOverview()
+    }
+
     /** Home. Also re-reads the overall progress so "Day N complete" reflects what was just done. */
     fun home() {
+        returnTo = null
         val hadStudy = _state.value.study != null || _state.value.writing != null || _state.value.anki != null
         flushWriting()
         stopSpeech()

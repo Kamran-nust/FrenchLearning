@@ -27,7 +27,7 @@ struct DayView: View {
                     HStack(spacing: 6) {
                         ForEach(PlanSection.allCases) { s in
                             let selected = s == section
-                            Button(s.title) { if s == .anki { model.browseDay(day) } else { model.open(s, day: day) } }
+                            Button(s.title) { if s == .anki { model.browseDay(day, section: .anki) } else { model.open(s, day: day) } }
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(selected ? c.onAccent : c.link)
                                 .padding(.horizontal, 10).padding(.vertical, 6)
@@ -63,8 +63,8 @@ struct DayView: View {
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(c.border))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
 
-                    Button { model.open(.anki, day: current.day) } label: {
-                        Text("Practice this day's flashcards").font(.system(size: 14, weight: .medium))
+                    Button { model.open(section, day: current.day) } label: {
+                        Text(section == .anki ? "Practice this day's flashcards" : "Open \(section.title) for Day \(current.day)").font(.system(size: 14, weight: .medium))
                             .frame(maxWidth: .infinity).padding(.vertical, 14)
                             .background(c.accent).foregroundColor(c.onAccent)
                             .clipShape(RoundedRectangle(cornerRadius: 12))

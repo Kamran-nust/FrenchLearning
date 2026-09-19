@@ -49,6 +49,8 @@ class MainActivity : ComponentActivity() {
                 controller.isAppearanceLightNavigationBars = lightTheme
             }
             CompositionLocalProvider(LocalColors provides colors) {
+                // One handler for the whole app, so a screen's Back cannot also trigger the next screen's Back.
+                BackHandler(enabled = state.screen !in listOf(Screen.Loading, Screen.Auth, Screen.Home)) { vm.systemBack() }
                 Box(Modifier.fillMaxSize().background(colors.bg).statusBarsPadding().navigationBarsPadding()) {
                     when (val screen = state.screen) {
                         Screen.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -60,10 +62,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Writing -> state.writing?.let { WritingScreen(it, vm) }
                         Screen.Anki -> state.anki?.let { AnkiScreen(it, vm) }
                         Screen.Admin -> state.admin?.let { AdminScreen(it, state.session?.userId, vm) }
-                        is Screen.Day -> {
-                            BackHandler { vm.home() }
-                            DayScreen(screen, state.tier, state.dayPlan, vm)
-                        }
+                        is Screen.Day -> DayScreen(screen, state.tier, state.dayPlan, vm)
                     }
                 }
             }

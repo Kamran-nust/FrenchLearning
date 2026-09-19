@@ -1,6 +1,5 @@
 package com.frenchnclc7.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,7 +52,6 @@ import com.frenchnclc7.app.data.Tier
 @Composable
 fun AdminScreen(a: AdminState, myId: String?, vm: AppViewModel) {
     val c = LocalColors.current
-    BackHandler { vm.home() }
 
     val users = a.users
     val shown = if (users == null) emptyList() else AdminLogic.filter(users, a.query)

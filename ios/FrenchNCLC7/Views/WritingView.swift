@@ -28,7 +28,7 @@ struct WritingView: View {
         let done = w.progress.completed_days.count
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Button { model.goHome() } label: {
+                Button { model.goBack() } label: {
                     Text("‹").font(.system(size: 24)).foregroundColor(c.muted)
                 }
                 Text(w.phase == .finished ? "Writing plan complete" : "Day \(w.viewDay) of \(totalDays)")

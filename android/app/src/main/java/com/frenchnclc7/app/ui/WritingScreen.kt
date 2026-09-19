@@ -1,6 +1,5 @@
 package com.frenchnclc7.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,7 +56,6 @@ import kotlinx.coroutines.delay
 @Composable
 fun WritingScreen(w: WritingState, vm: AppViewModel) {
     val c = LocalColors.current
-    BackHandler { vm.home() }
 
     if (w.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -74,7 +72,7 @@ fun WritingScreen(w: WritingState, vm: AppViewModel) {
         // Header: back, where you are, streak, progress bar
         Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("‹", color = c.muted, fontSize = 24.sp, modifier = Modifier.clickable { vm.home() }.padding(end = 10.dp))
+                Text("‹", color = c.muted, fontSize = 24.sp, modifier = Modifier.clickable { vm.back() }.padding(end = 10.dp))
                 Text(
                     if (w.phase == StudyPhase.FINISHED) "Writing plan complete" else "Day ${w.viewDay} of $TOTAL_DAYS",
                     color = c.muted, fontSize = 12.sp, modifier = Modifier.weight(1f),

@@ -1,6 +1,5 @@
 package com.frenchnclc7.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,7 +42,6 @@ import com.frenchnclc7.app.data.TOTAL_DAYS
 @Composable
 fun AnkiScreen(a: AnkiState, vm: AppViewModel) {
     val c = LocalColors.current
-    BackHandler { vm.home() }
 
     if (a.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -70,7 +68,7 @@ fun AnkiScreen(a: AnkiState, vm: AppViewModel) {
         // Header: back, where you are, streak, progress bar
         Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("‹", color = c.muted, fontSize = 24.sp, modifier = Modifier.clickable { vm.home() }.padding(end = 10.dp))
+                Text("‹", color = c.muted, fontSize = 24.sp, modifier = Modifier.clickable { vm.back() }.padding(end = 10.dp))
                 Text(
                     when {
                         a.phase == StudyPhase.FINISHED -> "Plan complete"

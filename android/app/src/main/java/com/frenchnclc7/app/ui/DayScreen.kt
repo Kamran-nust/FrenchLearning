@@ -55,7 +55,7 @@ fun DayScreen(screen: Screen.Day, tier: Tier, dayPlan: DayPlanState, vm: AppView
                     color = if (selected) c.onAccent else c.link,
                     modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(50))
                         .background(if (selected) c.accent else c.accentSoft)
-                        .clickable { if (s == PlanSection.ANKI) vm.browseDay(day.day) else vm.open(s, day.day) }.padding(horizontal = 10.dp, vertical = 6.dp),
+                        .clickable { if (s == PlanSection.ANKI) vm.browseDay(day.day, PlanSection.ANKI) else vm.open(s, day.day) }.padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
         }
@@ -86,6 +86,14 @@ fun DayScreen(screen: Screen.Day, tier: Tier, dayPlan: DayPlanState, vm: AppView
             } else {
                 Text(day.text, color = c.text, fontSize = 15.sp, lineHeight = 22.sp)
             }
+        }
+        if (screen.section != PlanSection.ANKI) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Open " + screen.section.title + " for Day " + day.day, color = c.onAccent, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.accent)
+                    .clickable { vm.open(screen.section, day.day) }.padding(vertical = 14.dp),
+            )
         }
         if (screen.section == PlanSection.ANKI) {
             Spacer(Modifier.height(14.dp))
