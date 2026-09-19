@@ -104,13 +104,15 @@ export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDa
 
           {completedThrough !== null && (
             <div className="flex flex-col items-center mt-5">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: COLORS.accentSoft }}>
-                <Check size={14} color={completedThrough > 0 ? COLORS.success : COLORS.muted} />
-                <span className="text-xs font-medium" style={{ color: completedThrough > 0 ? COLORS.text : COLORS.muted }}>
-                  {"Day " + completedThrough + " complete"}
-                </span>
-              </div>
-              <div className="w-full h-1 rounded-full overflow-hidden mt-2.5" style={{ background: COLORS.border, maxWidth: "200px" }}>
+              {completedThrough > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-2.5" style={{ background: COLORS.accentSoft }}>
+                  <Check size={14} color={COLORS.success} />
+                  <span className="text-xs font-medium" style={{ color: COLORS.text }}>
+                    {"Day " + completedThrough + " complete"}
+                  </span>
+                </div>
+              )}
+              <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: COLORS.border, maxWidth: "200px" }}>
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{ width: Math.round((completedThrough / TOTAL_DAYS) * 100) + "%", background: COLORS.accent }}
