@@ -13,7 +13,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument } from "npm:pdf-lib@1.17.1";
 import { corsHeaders } from "../_shared/cors.ts";
-import { requireUser } from "../_shared/auth.ts";
+import { requireTier } from "../_shared/auth.ts";
 import { BOOK_TOC } from "./book_toc.ts";
 
 Deno.serve(async (req) => {
@@ -21,8 +21,8 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const unauthorized = await requireUser(req);
-  if (unauthorized) return unauthorized;
+  const denied = await requireTier(req, "premium");
+  if (denied) return denied;
 
   try {
     const { book, chapters } = await req.json();

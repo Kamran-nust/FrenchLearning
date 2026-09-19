@@ -26,4 +26,24 @@ export async function requireUser(req: Request): Promise<Response | null> {
   return (await getUserId(req)) ? null : unauthorized();
 }
 
+const TIER_ORDER = ["free", "premium", "super"];
+
+// Requires a signed-in user whose tier is at least `minimum`. Returns null if
+// allowed, otherwise a 401 (not signed in) or 403 (tier too low) response.
+// If the tier can't be read it counts as free, so it fails closed.
+export async function requireTier(req: Request, minimum: "premium" | "super"): Promise<Response | null> {
+  const userId = await getUserId(req);
+  if (!userId) return unauthorized();
+
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const { data } = await admin.from("user_tiers").select("tier").eq("user_id", userId).maybeSingle();
+  const tier = data?.tier ?? "free";
+
+  if (TIER_ORDER.indexOf(tier) >= TIER_ORDER.indexOf(minimum) && TIER_ORDER.indexOf(tier) >= 0) return null;
+  return new Response(JSON.stringify({ error: "This is a " + minimum + " feature.", code: "tier_required", required: minimum }), {
+    status: 403,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 export { unauthorized };

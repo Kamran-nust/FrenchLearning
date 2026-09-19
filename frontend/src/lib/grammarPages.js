@@ -19,6 +19,12 @@ export async function fetchGrammarPages(book, chapters) {
     body: JSON.stringify({ book, chapters }),
   });
 
+  if (res.status === 403) {
+    const err = new Error("Premium feature");
+    err.code = "tier_required";
+    throw err;
+  }
+
   if (!res.ok) {
     let detail = "";
     try {

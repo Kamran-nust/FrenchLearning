@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, BookOpen } from "lucide-react";
+import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, BookOpen, Lock } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { todayKey, waitForStorage, diagnoseStorage } from "../shared/storage";
 import { GRAMMAR_DAYS } from "../data/grammarDays";
 import { fetchGrammarPages } from "../lib/grammarPages";
+import Gate from "../Gate.jsx";
 
 const GRAMMAR_TOTAL = GRAMMAR_DAYS.length;
 
@@ -83,7 +84,7 @@ export default function GrammarModule({ onBack, startDay }) {
       const url = URL.createObjectURL(blob);
       setPdfView({ url, label: book + " ch. " + chapters.join(", ") });
     } catch (e) {
-      setPdfError("Couldn't load those pages. Try again.");
+      setPdfError(e.code === "tier_required" ? "Grammar chapter PDFs are a Premium feature." : "Couldn't load those pages. Try again.");
     } finally {
       setPdfLoading(false);
     }
@@ -349,6 +350,18 @@ export default function GrammarModule({ onBack, startDay }) {
           </div>
 
           {bookGroups.length > 0 && (
+            <Gate
+              feature="grammarPdf"
+              fallback={
+                <div
+                  className="w-full mt-3 py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2"
+                  style={{ background: COLORS.card, border: "1px dashed " + COLORS.border, color: COLORS.muted }}
+                >
+                  <Lock size={13} />
+                  Grammar chapter PDFs are a Premium feature
+                </div>
+              }
+            >
             <div className="w-full mt-3 flex flex-col gap-2">
               {bookGroups.map((g) => (
                 <button
@@ -368,6 +381,7 @@ export default function GrammarModule({ onBack, startDay }) {
                 </div>
               )}
             </div>
+            </Gate>
           )}
 
           {isPendingDay && (

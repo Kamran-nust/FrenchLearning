@@ -507,6 +507,15 @@ Rule for new UI: use tokens from `COLORS`, never hardcoded hex colours.
 - Assign a tier: `update user_tiers set tier = 'premium' where user_id =
   (select id from auth.users where email = 'someone@example.com');`
 
+**Feature -> tier map.** Grammar chapter PDFs: Premium and Super only
+(`FEATURES.grammarPdf`). Free users see a locked note instead of the button;
+the `grammar-pages` function also rejects them with a 403 (`requireTier` in
+`_shared/auth.ts`, which fails closed to free if the tier can't be read), so
+calling it directly doesn't bypass the restriction. AI writing feedback is
+available to everyone, with per-tier daily limits (below). Everything else is
+available to all tiers. When restricting a new feature: add it to `FEATURES`,
+wrap the UI in `<Gate>`, and add `requireTier` to any backend function it uses.
+
 **AI writing-feedback limits (per tier, rolling 24 hours).** Free: 1,
 Premium: 5, Super: unlimited. Limits live in the `tier_limits` table
 (`0004_feedback_limits.sql`; NULL = unlimited), so they can be changed with

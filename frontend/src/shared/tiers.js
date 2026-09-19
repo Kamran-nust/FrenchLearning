@@ -10,7 +10,9 @@ export const TIER_LABELS = { free: "Free", premium: "Premium", super: "Super" };
 // Filled in as features are assigned to tiers. NOTE: hiding something here
 // only hides it in the UI. Anything that must really be restricted (an Edge
 // Function, stored data) also has to be enforced on the server.
-export const FEATURES = {};
+export const FEATURES = {
+  grammarPdf: "premium", // grammar chapter-excerpt PDFs
+};
 
 export function tierAtLeast(tier, minimum) {
   const have = TIER_ORDER.indexOf(tier);
