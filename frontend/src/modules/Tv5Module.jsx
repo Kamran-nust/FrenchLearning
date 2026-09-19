@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Tv, ExternalLink } from "lucide-react";
+import { Flame, RotateCcw, Check, ChevronLeft, ChevronRight, Tv, ExternalLink, BookOpen } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { todayKey, waitForStorage, diagnoseStorage } from "../shared/storage";
 import { splitLessonChips } from "../shared/textHelpers";
@@ -28,7 +28,7 @@ export default function Tv5Module({ onBack, startDay }) {
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [completionInfo, setCompletionInfo] = useState(null);
   const [viewDay, setViewDay] = useState(1);
-  const lessonLinks = useLessonLinks("tv5");
+  const { links: lessonLinks, extras: extraLinks } = useLessonLinks("tv5");
 
   useEffect(() => {
     let cancelled = false;
@@ -303,6 +303,20 @@ export default function Tv5Module({ onBack, startDay }) {
                   >
                     <Tv size={12} className="shrink-0" />
                     <span className="flex-1 truncate">{chip}</span>
+                    <ExternalLink size={12} className="shrink-0" />
+                  </a>
+                ))}
+                {(extraLinks.get(viewed.d) || []).map((e) => (
+                  <a
+                    key={e.url}
+                    href={e.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
+                    style={{ background: COLORS.accentSoft, color: COLORS.link }}
+                  >
+                    <BookOpen size={12} className="shrink-0" />
+                    <span className="flex-1 truncate">{e.label}</span>
                     <ExternalLink size={12} className="shrink-0" />
                   </a>
                 ))}

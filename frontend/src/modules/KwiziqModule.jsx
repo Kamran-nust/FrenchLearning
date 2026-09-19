@@ -28,7 +28,7 @@ export default function KwiziqModule({ onBack, startDay }) {
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [completionInfo, setCompletionInfo] = useState(null);
   const [viewDay, setViewDay] = useState(1);
-  const lessonLinks = useLessonLinks("kwiziq");
+  const { links: lessonLinks, extras: extraLinks } = useLessonLinks("kwiziq");
 
   useEffect(() => {
     let cancelled = false;
@@ -294,6 +294,20 @@ export default function KwiziqModule({ onBack, startDay }) {
                   >
                     {lessonLinks.has(chip) ? <BookOpen size={12} className="shrink-0" /> : <Search size={12} className="shrink-0" />}
                     <span className="flex-1 truncate">{chip}</span>
+                    <ExternalLink size={12} className="shrink-0" />
+                  </a>
+                ))}
+                {(extraLinks.get(viewed.d) || []).map((e) => (
+                  <a
+                    key={e.url}
+                    href={e.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
+                    style={{ background: COLORS.accentSoft, color: COLORS.link }}
+                  >
+                    <BookOpen size={12} className="shrink-0" />
+                    <span className="flex-1 truncate">{e.label}</span>
                     <ExternalLink size={12} className="shrink-0" />
                   </a>
                 ))}

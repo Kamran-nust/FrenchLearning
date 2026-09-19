@@ -3,7 +3,7 @@
 -- Re-runnable: upserts by (module, chip).
 insert into lesson_links (module, chip, url, title, approved) values
   ('kwiziq', 'Conjugate être in the present tense in French (Le Présent)', 'https://french.kwiziq.com/revision/grammar/conjugate-etre-in-le-present-present-tense', 'Conjugate être in the present tense in French (Le Présent)', true),
-  ('kwiziq', 'subject pronouns je, tu, il, elle, vous', 'https://french.kwiziq.com/revision/grammar/il-elle-ils-and-elles-it-he-she-and-they', 'Il/elle/ils/elles = it/he/she/they (French Subject Pronouns)', false),
+  ('kwiziq', 'subject pronouns je, tu, il, elle, vous', 'https://french.kwiziq.com/revision/grammar/tu-and-vous-are-used-for-three-types-of-you', 'Using Tu and Vous to express three types of you in French (French Subject Pronouns)', true),
   ('kwiziq', 'Conjugate avoir in the present tense in French (Le Présent)', 'https://french.kwiziq.com/revision/grammar/conjugate-irregular-avoir-in-le-present-the-present-tense', 'Conjugate avoir in the present tense in French (Le Présent)', true),
   ('kwiziq', 'C''est vs il/elle est', 'https://french.kwiziq.com/revision/grammar/c-est-vs-il-elle-est-saying-it-is-she-is-he-is', '"C''est" vs "Il/Elle est" to say it is/she is/he is in French', true),
   ('kwiziq', 'elision with je/j''', 'https://french.kwiziq.com/revision/grammar/je-becomes-j-apostrophe-with-verbs-beginning-with-a-vowel-elision', 'Je becomes j'' with verbs beginning with a vowel in French (Elision)', true),

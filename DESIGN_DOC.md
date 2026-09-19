@@ -545,6 +545,12 @@ diagnostic", ...) rather than lessons, so they have no page to link to. TV5
 uses the same table (`module = 'tv5'`) and is wired up, but has no rows yet;
 73 of its 301 days are generic study instructions with no lesson page. Seed
 data: `supabase/seed/kwiziq_links.sql` (re-runnable upsert).
+Links that are *not* one of the plan's chips (an extra link on a given day)
+live in a second table, `lesson_extra_links` (migration `0007`: module, day,
+label, url, sort; same access rules), shown as extra rows under that day's
+chips for premium/super. Day 1 currently has one (Me/te/nous/vous), and Day 1's
+"subject pronouns" chip points at the Tu/Vous lesson
+(`supabase/seed/kwiziq_day1_links.sql`).
 
 **AI writing-feedback limits (per tier, rolling 24 hours).** Free: 1,
 Premium: 5, Super: unlimited. Limits live in the `tier_limits` table

@@ -9,7 +9,6 @@ Approve them all: `update lesson_links set approved = true where module = 'kwizi
 
 | Day | Plan chip | Matched Kwiziq lesson |
 |---|---|---|
-| 1 | subject pronouns je, tu, il, elle, vous | [Il/elle/ils/elles = it/he/she/they (French Subject Pronouns)](https://french.kwiziq.com/revision/grammar/il-elle-ils-and-elles-it-he-she-and-they) |
 | 3 | noun gender | [Identifying the gender of nouns by some specific word endings in French](https://french.kwiziq.com/revision/grammar/how-to-identify-gender-by-some-word-endings) |
 | 5 | habiter à/en/au/aux | [J'habite à + [ville] = I live in + [city] in French](https://french.kwiziq.com/revision/grammar/say-where-you-live-with-jhabite-a-city) |
 | 10 | Adjective agreement: regular masculine/feminine and singular/plural | [Most adjectives can be made feminine by adding -e in French](https://french.kwiziq.com/revision/grammar/how-adjectives-usually-take-an-e-in-the-feminine-form-feminine-adjectives) |
