@@ -10,6 +10,9 @@ import com.frenchnclc7.app.data.CardStat
 import com.frenchnclc7.app.data.SpeechPlayer
 import com.frenchnclc7.app.data.AppRead
 import com.frenchnclc7.app.data.BookChapters
+import com.frenchnclc7.app.data.DayPlanLogic
+import com.frenchnclc7.app.data.DayPlanPdf
+import com.frenchnclc7.app.data.PdfQuota
 import com.frenchnclc7.app.data.GrammarPagesResult
 import com.frenchnclc7.app.data.LessonLinkLogic
 import com.frenchnclc7.app.data.LessonLinks
@@ -28,7 +31,11 @@ import com.frenchnclc7.app.data.Tier
 import com.frenchnclc7.app.data.WritingEntry
 import com.frenchnclc7.app.data.WritingLogic
 import com.frenchnclc7.app.ui.Themes
+import android.net.Uri
 import java.io.File
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
@@ -126,6 +133,17 @@ data class AnkiState(
     val confirmingReset: Boolean = false,
 )
 
+/** A finished day-plan PDF waiting to be saved to a place the user picks. */
+class PdfReady(val fileName: String, val bytes: ByteArray, val claimId: Long)
+
+data class DayPlanState(
+    /** Whether another download is allowed right now; null until known. */
+    val quota: PdfQuota? = null,
+    val busy: Boolean = false,
+    val error: String? = null,
+    val ready: PdfReady? = null,
+)
+
 data class UiState(
     val screen: Screen = Screen.Loading,
     val session: Session? = null,
@@ -140,6 +158,7 @@ data class UiState(
     val study: StudyState? = null,
     val writing: WritingState? = null,
     val anki: AnkiState? = null,
+    val dayPlan: DayPlanState = DayPlanState(),
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -148,6 +167,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val plan = PlanRepository(app)
     private val speech = SpeechPlayer(app)
     private val cacheDir = app.cacheDir
+    private val resolver = app.contentResolver
 
     private val _state = MutableStateFlow(UiState(themeId = store.themeId))
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -791,4 +811,81 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun closeGrammarPdf() = editStudy { it.copy(pdfViewer = null) }
+
+    // ---- Day-plan PDF download (premium: 1 per 24 hours, super: unlimited) ---------------------------
+
+    private fun updateDayPlan(change: (DayPlanState) -> DayPlanState) = _state.update { it.copy(dayPlan = change(it.dayPlan)) }
+
+    /** Reads whether a download is allowed now (premium and super only; free accounts never see the button). */
+    fun loadPdfQuota() {
+        if (!_state.value.tier.atLeast(Tier.PREMIUM)) return
+        viewModelScope.launch {
+            val quota = try { authed { api.pdfQuota(it) } } catch (e: ApiException) { null }
+            updateDayPlan { it.copy(quota = quota) }
+        }
+    }
+
+    private fun refundPdf(id: Long) {
+        viewModelScope.launch {
+            try { authed { api.refundPdfDownload(it, id) } } catch (e: ApiException) { /* best effort: it also expires on its own */ }
+            loadPdfQuota()
+        }
+    }
+
+    /**
+     * Reserves a download (the limit is enforced by the database, not the app), builds the PDF on the phone, and
+     * hands it to the screen to be saved. If building it fails, the download is given back.
+     */
+    fun requestDayPlanPdf(day: Int) {
+        val current = _state.value.dayPlan
+        if (current.busy || current.ready != null) return
+        updateDayPlan { it.copy(busy = true, error = null) }
+        viewModelScope.launch {
+            val claim = try { authed { api.claimPdfDownload(it, day) } } catch (e: ApiException) { null }
+            if (claim == null) {
+                updateDayPlan { it.copy(busy = false, error = "Couldn't check your download allowance. Please try again.") }
+                return@launch
+            }
+            if (!claim.ok || claim.id == null) {
+                // used up (or not allowed): show when the next one is available
+                updateDayPlan { it.copy(busy = false, quota = claim.status ?: it.quota) }
+                return@launch
+            }
+            try {
+                fun dayOf(section: PlanSection) = plan.days(section).first { it.day == day }
+                val content = DayPlanLogic.build(
+                    dayOf(PlanSection.ANKI), dayOf(PlanSection.GRAMMAR), dayOf(PlanSection.KWIZIQ), dayOf(PlanSection.TV5), dayOf(PlanSection.WRITING),
+                )
+                val date = LocalDate.now().format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US))
+                val bytes = withContext(Dispatchers.Default) { DayPlanPdf.render(content, date) }
+                updateDayPlan { it.copy(busy = false, ready = PdfReady(DayPlanLogic.fileName(day), bytes, claim.id), quota = claim.status ?: it.quota) }
+            } catch (e: Exception) {
+                refundPdf(claim.id)
+                updateDayPlan { it.copy(busy = false, error = "Couldn't create the PDF. Your download was not used - please try again.") }
+            }
+        }
+    }
+
+    /** Saves the finished PDF to the place the user chose. */
+    fun writeDayPlanPdf(uri: Uri) {
+        val ready = _state.value.dayPlan.ready ?: return
+        viewModelScope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                try { resolver.openOutputStream(uri)?.use { it.write(ready.bytes); true } ?: false } catch (e: Exception) { false }
+            }
+            if (saved) {
+                updateDayPlan { it.copy(ready = null) }
+            } else {
+                refundPdf(ready.claimId)
+                updateDayPlan { it.copy(ready = null, error = "Couldn't save the PDF. Your download was not used - please try again.") }
+            }
+        }
+    }
+
+    /** The user backed out of choosing where to save: nothing was delivered, so the download is given back. */
+    fun cancelDayPlanPdf() {
+        val ready = _state.value.dayPlan.ready ?: return
+        updateDayPlan { it.copy(ready = null) }
+        refundPdf(ready.claimId)
+    }
 }

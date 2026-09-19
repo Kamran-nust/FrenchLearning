@@ -283,4 +283,26 @@ struct SupabaseAPI {
             extraRows: (extras.flatMap { (200...299).contains($0.status) ? $0.data : nil })
         )
     }
+
+    /// Whether another day-plan PDF may be downloaded now (premium: 1 per 24 hours, super: unlimited). nil if it can't be read.
+    func pdfQuota(_ session: Session) async throws -> PdfQuota? {
+        guard let reply = try? await call("POST", "/rest/v1/rpc/pdf_quota", token: session.accessToken, body: [:]) else { return nil }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else { return nil }
+        return DayPlanLogic.parseQuota(reply.data)
+    }
+
+    /// Reserves one download for the caller. The database refuses when the allowance is used up. nil if the request failed.
+    func claimPdfDownload(_ session: Session, day: Int) async throws -> PdfClaim? {
+        guard let reply = try? await call("POST", "/rest/v1/rpc/claim_pdf_download", token: session.accessToken, body: ["p_day": day]) else { return nil }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else { return nil }
+        return DayPlanLogic.parseClaim(reply.data)
+    }
+
+    /// Gives a reserved download back (only your own, and only within two minutes; the database enforces that).
+    func refundPdfDownload(_ session: Session, id: Int) async throws {
+        guard let reply = try? await call("POST", "/rest/v1/rpc/refund_pdf_download", token: session.accessToken, body: ["p_id": id]) else { return }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+    }
 }

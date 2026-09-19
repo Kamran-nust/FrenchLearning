@@ -301,4 +301,26 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
             if (extras.status in 200..299) extras.body else null,
         )
     }
+
+    /** Whether another day-plan PDF may be downloaded now (premium: 1 per 24 hours, super: unlimited). Null if it can't be read. */
+    suspend fun pdfQuota(session: Session): PdfQuota? {
+        val reply = call("POST", "/rest/v1/rpc/pdf_quota", session.accessToken, buildJsonObject { })
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) return null
+        return DayPlanLogic.parseQuota(reply.body)
+    }
+
+    /** Reserves one download for the caller. The database refuses when the allowance is used up. Null if the request failed. */
+    suspend fun claimPdfDownload(session: Session, day: Int): PdfClaim? {
+        val reply = call("POST", "/rest/v1/rpc/claim_pdf_download", session.accessToken, buildJsonObject { put("p_day", day) })
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) return null
+        return DayPlanLogic.parseClaim(reply.body)
+    }
+
+    /** Gives a reserved download back (only your own, and only within two minutes; the database enforces that). */
+    suspend fun refundPdfDownload(session: Session, id: Long) {
+        val reply = call("POST", "/rest/v1/rpc/refund_pdf_download", session.accessToken, buildJsonObject { put("p_id", id) })
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+    }
 }

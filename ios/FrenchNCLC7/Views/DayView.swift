@@ -80,6 +80,8 @@ struct DayView: View {
                             .foregroundColor(current.day < totalDays ? c.link : c.muted)
                     }
                     .font(.system(size: 14))
+
+                    DayPlanDownloadView(day: current.day)
                 }
             }
             .padding(20)

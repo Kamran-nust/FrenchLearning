@@ -101,6 +101,21 @@ struct AnkiState: Equatable {
     var confirmingReset = false
 }
 
+/// A finished day-plan PDF waiting to be saved (through the share sheet: "Save to Files").
+struct PdfReady: Equatable {
+    let fileName: String
+    let url: URL
+    let claimId: Int
+}
+
+struct DayPlanState: Equatable {
+    /// Whether another download is allowed right now; nil until known.
+    var quota: PdfQuota?
+    var busy = false
+    var error: String?
+    var ready: PdfReady?
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var screen: Screen = .loading
@@ -116,6 +131,7 @@ final class AppModel: ObservableObject {
     @Published var study: StudyState?
     @Published var writing: WritingState?
     @Published var anki: AnkiState?
+    @Published var dayPlan = DayPlanState()
 
     let plan = PlanRepository()
     private let api = SupabaseAPI()
@@ -928,5 +944,80 @@ final class AppModel: ObservableObject {
         guard var s = study else { return }
         s.pdfViewer = nil
         study = s
+    }
+
+    // MARK: Day-plan PDF download (premium: 1 per 24 hours, super: unlimited)
+
+    /// Reads whether a download is allowed now (premium and super only; free accounts never see the button).
+    func loadPdfQuota() {
+        guard tier.atLeast(.premium) else { return }
+        Task { [self] in
+            let quota = try? await authed { try await self.api.pdfQuota($0) }
+            dayPlan.quota = quota ?? nil
+        }
+    }
+
+    private func refundPdf(_ id: Int) {
+        Task { [self] in
+            _ = try? await authed { try await self.api.refundPdfDownload($0, id: id) }
+            loadPdfQuota()
+        }
+    }
+
+    /// Reserves a download (the limit is enforced by the database, not the app), builds the PDF on the phone, and
+    /// hands it to the screen to be saved. If building it fails, the download is given back.
+    func requestDayPlanPdf(day: Int) {
+        guard !dayPlan.busy, dayPlan.ready == nil else { return }
+        dayPlan.busy = true
+        dayPlan.error = nil
+        Task { [self] in
+            let claim = (try? await authed { try await self.api.claimPdfDownload($0, day: day) }) ?? nil
+            guard let claim else {
+                dayPlan.busy = false
+                dayPlan.error = "Couldn't check your download allowance. Please try again."
+                return
+            }
+            guard claim.ok, let id = claim.id else {
+                // used up (or not allowed): show when the next one is available
+                dayPlan.busy = false
+                dayPlan.quota = claim.status ?? dayPlan.quota
+                return
+            }
+            func dayOf(_ section: PlanSection) -> DayContent? { plan.days(section).first { $0.day == day } }
+            guard let anki = dayOf(.anki), let grammar = dayOf(.grammar), let kwiziq = dayOf(.kwiziq),
+                  let tv5 = dayOf(.tv5), let writing = dayOf(.writing) else {
+                refundPdf(id)
+                dayPlan.busy = false
+                dayPlan.error = "Couldn't create the PDF. Your download was not used - please try again."
+                return
+            }
+            let content = DayPlanLogic.build(anki: anki, grammar: grammar, kwiziq: kwiziq, tv5: tv5, writing: writing)
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "MMM d, yyyy"
+            let data = DayPlanPdf.render(content, dateText: formatter.string(from: Date()))
+            let name = DayPlanLogic.fileName(day)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                refundPdf(id)
+                dayPlan.busy = false
+                dayPlan.error = "Couldn't create the PDF. Your download was not used - please try again."
+                return
+            }
+            dayPlan.busy = false
+            dayPlan.quota = claim.status ?? dayPlan.quota
+            dayPlan.ready = PdfReady(fileName: name, url: url, claimId: id)
+        }
+    }
+
+    /// The share sheet closed. If the PDF was saved or shared, the download stays used; if the person
+    /// backed out, nothing was delivered, so the download is given back.
+    func dayPlanShareFinished(saved: Bool) {
+        guard let ready = dayPlan.ready else { return }
+        dayPlan.ready = nil
+        try? FileManager.default.removeItem(at: ready.url)
+        if !saved { refundPdf(ready.claimId) }
     }
 }

@@ -26,13 +26,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.frenchnclc7.app.AppViewModel
+import com.frenchnclc7.app.DayPlanState
+import com.frenchnclc7.app.data.Tier
 import com.frenchnclc7.app.Screen
 import com.frenchnclc7.app.data.PlanSection
 import com.frenchnclc7.app.data.TOTAL_DAYS
 
 /** Read-only view of one day of one section, with previous/next and a way to switch section. */
 @Composable
-fun DayScreen(screen: Screen.Day, vm: AppViewModel) {
+fun DayScreen(screen: Screen.Day, tier: Tier, dayPlan: DayPlanState, vm: AppViewModel) {
     val c = LocalColors.current
     val days = remember(screen.section) { vm.plan.days(screen.section) }
     val day = days.first { it.day == screen.day.coerceIn(1, TOTAL_DAYS) }
@@ -107,5 +109,7 @@ fun DayScreen(screen: Screen.Day, vm: AppViewModel) {
                 modifier = Modifier.weight(1f).clickable(enabled = next) { vm.browseDay(day.day + 1) }.padding(8.dp),
             )
         }
+
+        DayPlanDownload(day.day, tier, dayPlan, vm)
     }
 }

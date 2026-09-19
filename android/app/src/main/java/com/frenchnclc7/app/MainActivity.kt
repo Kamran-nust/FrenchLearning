@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Anki -> state.anki?.let { AnkiScreen(it, vm) }
                         is Screen.Day -> {
                             BackHandler { vm.home() }
-                            DayScreen(screen, vm)
+                            DayScreen(screen, state.tier, state.dayPlan, vm)
                         }
                     }
                 }
