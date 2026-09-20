@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Flame, Flag, Volume2, RotateCcw, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Flame, Flag, Volume2, RotateCcw, Check, ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { todayKey, waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
 import StorageNotice from "../shared/StorageNotice.jsx";
@@ -7,6 +7,8 @@ import { DAYS } from "../data/ankiDays";
 import { buildSession } from "../lib/ankiSession";
 import { fetchWordBank } from "../lib/wordBank";
 import { toAnkiCards } from "../shared/wordBank";
+import { useTier } from "../TierContext.jsx";
+import { dailyLimit, limitReached, todaysCount } from "../shared/ankiLimits";
 
 const TOTAL_DAYS = DAYS.length;
 
@@ -40,7 +42,13 @@ function loadFrenchVoice() {
   });
 }
 
-export default function AnkiModule({ onBack, startDay }) {
+export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
+  const { tier, loading: tierLoading } = useTier();
+  const limit = dailyLimit(tier);
+  // Cards seen today (kept with the rest of the saved progress). The ref always holds the latest total.
+  const [dailySeen, setDailySeen] = useState(0);
+  const seenRef = useRef(0);
+  const countedRef = useRef(0); // cards of the current session already added to today's total
   const [phase, setPhase] = useState("loading");
   const [progress, setProgress] = useState(FRESH_PROGRESS);
   const [hardWords, setHardWords] = useState(new Set());
@@ -65,6 +73,7 @@ export default function AnkiModule({ onBack, startDay }) {
   }, []);
 
   useEffect(() => {
+    if (tierLoading) return undefined; // the session size depends on the tier
     let cancelled = false;
     async function init() {
       let p = null;
@@ -93,7 +102,14 @@ export default function AnkiModule({ onBack, startDay }) {
       } catch {
         custom = [];
       }
+      let seen = 0;
+      if (diag.ok) {
+        const rd = await readSaved("anki-daily");
+        seen = todaysCount(rd.ok ? rd.value : null, todayKey());
+      }
       if (cancelled) return;
+      seenRef.current = seen;
+      setDailySeen(seen);
       setCustomCards(custom);
       const finalProgress = p || FRESH_PROGRESS;
       setProgress(finalProgress);
@@ -106,27 +122,41 @@ export default function AnkiModule({ onBack, startDay }) {
         // Opened from Level/Day browsing: launch a bonus practice session for
         // that specific day, leaving real progress/streak untouched.
         const clamped = Math.max(1, Math.min(startDay, TOTAL_DAYS));
-        const sess = buildSession({ ...finalProgress, current_day: clamped }, new Set(hw), custom);
-        setSession(sess);
         setIsPracticeSession(true);
+        if (limitReached(tier, seen)) {
+          setPhase("limit");
+          return;
+        }
+        const sess = buildSession({ ...finalProgress, current_day: clamped }, new Set(hw), custom, {
+          tier,
+          practice: true,
+          seen,
+        });
+        setSession(sess);
         setQIndex(0);
         setRevealed(false);
         setPhase("session");
+        beginCounting(sess);
       } else if (finalProgress.current_day > TOTAL_DAYS) {
         setPhase("finished");
       } else {
-        const sess = buildSession(finalProgress, new Set(hw), custom);
+        if (limitReached(tier, seen)) {
+          setPhase("limit");
+          return;
+        }
+        const sess = buildSession(finalProgress, new Set(hw), custom, { tier, seen });
         setSession(sess);
         setQIndex(0);
         setRevealed(false);
         setPhase("session");
+        beginCounting(sess);
       }
     }
     init();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tierLoading, tier]);
 
   const speak = useCallback((text) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -195,6 +225,23 @@ export default function AnkiModule({ onBack, startDay }) {
     setRevealed(true);
   }
 
+  // A new session starts: its first card is on screen, so it counts.
+  function beginCounting(sess) {
+    countedRef.current = 0;
+    if (sess) recordShown(1);
+  }
+
+  // shownCount = how many cards of this session have been on screen so far. Only the newly seen ones are
+  // added to today's total, so going back and forth over a card doesn't count it twice.
+  function recordShown(shownCount) {
+    if (limit === null || shownCount <= countedRef.current) return;
+    const total = seenRef.current + (shownCount - countedRef.current);
+    countedRef.current = shownCount;
+    seenRef.current = total;
+    setDailySeen(total);
+    persist("anki-daily", { date: todayKey(), seen: total });
+  }
+
   function goToNextWord() {
     if (!currentItem) return;
     const nextIndex = qIndex + 1;
@@ -203,6 +250,7 @@ export default function AnkiModule({ onBack, startDay }) {
     } else {
       setQIndex(nextIndex);
       setRevealed(false);
+      recordShown(nextIndex + 1);
     }
   }
 
@@ -268,12 +316,21 @@ export default function AnkiModule({ onBack, startDay }) {
   }
 
   function practiceDayAgain(day) {
-    const sess = buildSession({ ...progress, current_day: day }, hardWords, customCards);
-    setSession(sess);
     setIsPracticeSession(true);
+    if (limitReached(tier, seenRef.current)) {
+      setPhase("limit");
+      return;
+    }
+    const sess = buildSession({ ...progress, current_day: day }, hardWords, customCards, {
+      tier,
+      practice: true,
+      seen: seenRef.current,
+    });
+    setSession(sess);
     setQIndex(0);
     setRevealed(false);
     setPhase("session");
+    beginCounting(sess);
   }
 
   function continueToNextDay() {
@@ -281,11 +338,16 @@ export default function AnkiModule({ onBack, startDay }) {
       setPhase("finished");
       return;
     }
-    const sess = buildSession(progress, hardWords, customCards);
+    if (limitReached(tier, seenRef.current)) {
+      setPhase("limit");
+      return;
+    }
+    const sess = buildSession(progress, hardWords, customCards, { tier, seen: seenRef.current });
     setSession(sess);
     setQIndex(0);
     setRevealed(false);
     setPhase("session");
+    beginCounting(sess);
   }
 
   function doReset() {
@@ -295,12 +357,18 @@ export default function AnkiModule({ onBack, startDay }) {
     persist("progress", FRESH_PROGRESS);
     persist("hard-words", []);
     persist("card-stats", {});
-    const sess = buildSession(FRESH_PROGRESS, new Set());
+    if (limitReached(tier, seenRef.current)) {
+      setConfirmingReset(false);
+      setPhase("limit");
+      return;
+    }
+    const sess = buildSession(FRESH_PROGRESS, new Set(), customCards, { tier, seen: seenRef.current });
     setSession(sess);
     setQIndex(0);
     setRevealed(false);
     setConfirmingReset(false);
     setPhase("session");
+    beginCounting(sess);
   }
 
   useEffect(() => {
@@ -407,6 +475,46 @@ export default function AnkiModule({ onBack, startDay }) {
       )}
     </div>
   );
+
+  if (phase === "limit") {
+    return (
+      <div style={wrapStyle} className="min-h-screen flex flex-col">
+        {fontImport}
+        {Header}
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
+            style={{ background: COLORS.accentSoft }}
+          >
+            <Lock size={26} color={COLORS.accent} />
+          </div>
+          <div className="text-2xl mb-2" style={{ fontFamily: "'Fraunces', serif" }}>
+            Today's limit reached
+          </div>
+          <div className="text-sm max-w-xs mb-6" style={{ color: COLORS.muted }}>
+            You've seen {limit} words today. Your limit resets tomorrow
+            {tier === "free" ? ", and Premium raises it to 200 words a day." : "."}
+          </div>
+          {tier === "free" && onOpenPlans && (
+            <button
+              onClick={onOpenPlans}
+              className="px-6 py-3 rounded-xl text-sm font-medium"
+              style={{ background: COLORS.accent, color: COLORS.onAccent }}
+            >
+              See plans
+            </button>
+          )}
+          <button
+            onClick={onBack}
+            className="mt-3 px-6 py-2.5 rounded-xl text-sm font-medium"
+            style={{ background: "transparent", color: COLORS.muted, border: "1px solid " + COLORS.border }}
+          >
+            Back to home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "finished") {
     return (
@@ -530,6 +638,11 @@ export default function AnkiModule({ onBack, startDay }) {
 
       <div className="flex-1 flex flex-col items-center justify-center px-5">
         <div className="w-full max-w-md">
+          {limit !== null && (
+            <div className="text-xs text-center mb-2" style={{ color: COLORS.muted }}>
+              Words today: {Math.min(dailySeen, limit)} of {limit}
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2 px-1">
             <span
               className="text-xs px-2.5 py-1 rounded-full"

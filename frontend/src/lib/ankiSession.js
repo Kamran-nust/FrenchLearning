@@ -1,5 +1,6 @@
 import { DAYS } from "../data/ankiDays";
 import { splitReviewSlots } from "../shared/wordBank";
+import { superDayTotal, sessionCap } from "../shared/ankiLimits";
 
 const TOTAL_DAYS = DAYS.length;
 
@@ -33,7 +34,11 @@ function shuffle(list) {
 
 // customCards: the person's Word Bank words as cards (see toAnkiCards). They join the review pool along
 // with the words from earlier days; they are never "new".
-export function buildSession(progress, hardWordsSet, customCards = []) {
+// options.tier: the person's tier. Super users get a bigger day (25 rising to 50 cards); free and premium
+//   sessions are held to their daily limit. Leave it out and the session is sized as it always was.
+// options.practice / options.seen: extra practice may only use what is left of today's allowance.
+export function buildSession(progress, hardWordsSet, customCards = [], options = {}) {
+  const { tier, practice = false, seen = 0 } = options;
   const dayIdx = progress.current_day - 1;
   if (dayIdx < 0 || dayIdx >= TOTAL_DAYS) return null;
   const dayObj = DAYS[dayIdx];
@@ -45,7 +50,16 @@ export function buildSession(progress, hardWordsSet, customCards = []) {
       for (const c of d.c) reviewPool.push({ ...c, sourceDay: d.d });
     }
   }
-  const target = Math.round(5 + (35 / 300) * completedCount);
+  let target = Math.round(5 + (35 / 300) * completedCount);
+  let newList = newWords;
+  if (tier !== undefined) {
+    if (tier === "super") target = Math.max(0, superDayTotal(completedCount) - newWords.length);
+    const cap = sessionCap(tier, { practice, seen });
+    if (cap !== null) {
+      newList = newWords.slice(0, cap);
+      target = Math.min(target, Math.max(0, cap - newList.length));
+    }
+  }
   const slots = splitReviewSlots(target, reviewPool.length, customCards.length);
   const picked = [
     ...weightedSample(reviewPool, hardWordsSet, slots.builtin),
@@ -56,7 +70,7 @@ export function buildSession(progress, hardWordsSet, customCards = []) {
   const reviewCount = reviewSelected.length;
 
   // New words: always French -> English, one card each, no reverse pass.
-  const newItems = newWords.map((w) => ({
+  const newItems = newList.map((w) => ({
     ...w,
     dir: "FE",
     key: w.i + "-new-" + dayObj.d,

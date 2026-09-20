@@ -1,3 +1,5 @@
+import { DAILY_WORD_LIMITS } from "./ankiLimits";
+
 // Premium pricing and the Free-versus-Premium comparison shown on the Plans page.
 // Sent by the top-bar "Go Premium" pill to ask the app to open the Plans page.
 export const OPEN_PLANS_EVENT = "open-plans";
@@ -33,6 +35,11 @@ export const FEATURE_GROUPS = [
   {
     title: "Downloads and AI",
     rows: [
+      {
+        label: "Anki words per day",
+        free: DAILY_WORD_LIMITS.free + " per day",
+        premium: DAILY_WORD_LIMITS.premium + " per day",
+      },
       { label: "Grammar chapter PDFs", free: false, premium: true },
       { label: "Day-plan PDF", free: false, premium: "1 per day" },
       {

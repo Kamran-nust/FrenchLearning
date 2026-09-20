@@ -100,5 +100,7 @@ export default function App() {
   if (screen === "tv5monde") {
     return <Tv5Module onBack={() => setScreen(returnScreen)} startDay={jumpDay} />;
   }
-  return <AnkiModule onBack={() => setScreen(returnScreen)} startDay={jumpDay} />;
+  return (
+    <AnkiModule onBack={() => setScreen(returnScreen)} startDay={jumpDay} onOpenPlans={() => setScreen("plans")} />
+  );
 }
