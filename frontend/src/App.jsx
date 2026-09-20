@@ -10,6 +10,7 @@ import LevelDetailScreen from "./screens/LevelDetailScreen.jsx";
 import DayJumpScreen from "./screens/DayJumpScreen.jsx";
 import AdminScreen from "./screens/AdminScreen.jsx";
 import PlansScreen from "./screens/PlansScreen.jsx";
+import WordBankModule from "./modules/WordBankModule.jsx";
 import { OPEN_PLANS_EVENT } from "./shared/plans";
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
         onJumpToDay={() => setScreen("day-jump")}
         onOpenAdmin={() => setScreen("admin")}
         onOpenPlans={() => setScreen("plans")}
+        onOpenWordBank={() => setScreen("wordbank")}
       />
     );
   }
@@ -76,6 +78,9 @@ export default function App() {
         onSelectSection={(id, day) => openSection(id, "day-jump", day)}
       />
     );
+  }
+  if (screen === "wordbank") {
+    return <WordBankModule onBack={() => setScreen("home")} onOpenPlans={() => setScreen("plans")} />;
   }
   if (screen === "plans") {
     return <PlansScreen onBack={() => setScreen("home")} />;

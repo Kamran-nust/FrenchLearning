@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { ArrowRight, Lock, Layers, Calendar, Check, Users, Sparkles } from "lucide-react";
+import { ArrowRight, Lock, Layers, Calendar, Check, Users, Sparkles, BookMarked } from "lucide-react";
 import Gate from "../Gate.jsx";
+import { useTier } from "../TierContext.jsx";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { SECTIONS } from "../shared/navigationConfig";
 import { DAYS } from "../data/ankiDays";
@@ -99,7 +100,15 @@ function CornerFlourish({ side }) {
   );
 }
 
-export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDay, onOpenAdmin, onOpenPlans }) {
+export default function HomeScreen({
+  onSelectSection,
+  onBrowseLevels,
+  onJumpToDay,
+  onOpenAdmin,
+  onOpenPlans,
+  onOpenWordBank,
+}) {
+  const { loading: tierLoading, can } = useTier();
   const [completedThrough, setCompletedThrough] = useState(null); // null = loading or unavailable
 
   useEffect(() => {
@@ -236,6 +245,35 @@ export default function HomeScreen({ onSelectSection, onBrowseLevels, onJumpToDa
             );
           })}
         </div>
+
+        {onOpenWordBank && (
+          <button
+            onClick={onOpenWordBank}
+            className="w-full mt-2.5 flex items-center gap-3.5 p-4 rounded-2xl text-left"
+            style={{ background: COLORS.card, border: "1px solid " + COLORS.accent }}
+          >
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: COLORS.accentSoft }}
+            >
+              <BookMarked size={18} color={COLORS.accent} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">Word Bank</div>
+              <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                Your own words, mixed into Anki reviews
+              </div>
+            </div>
+            {!tierLoading && !can("wordBank") ? (
+              <div className="flex items-center gap-1 text-xs shrink-0" style={{ color: COLORS.muted }}>
+                <Lock size={12} />
+                Premium
+              </div>
+            ) : (
+              <ArrowRight size={16} color={COLORS.accent} />
+            )}
+          </button>
+        )}
 
         <div className="mt-6">
           <div className="text-xs mb-2 px-1" style={{ color: COLORS.muted }}>

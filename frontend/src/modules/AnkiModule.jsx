@@ -4,6 +4,9 @@ import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { todayKey, waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
 import StorageNotice from "../shared/StorageNotice.jsx";
 import { DAYS } from "../data/ankiDays";
+import { buildSession } from "../lib/ankiSession";
+import { fetchWordBank } from "../lib/wordBank";
+import { toAnkiCards } from "../shared/wordBank";
 
 const TOTAL_DAYS = DAYS.length;
 
@@ -37,63 +40,13 @@ function loadFrenchVoice() {
   });
 }
 
-function weightedSample(pool, hardSet, count) {
-  const arr = pool.map((c) => ({ ...c, weight: hardSet.has(c.i) ? 5 : 1 }));
-  const out = [];
-  for (let n = 0; n < count && arr.length > 0; n++) {
-    const total = arr.reduce((s, c) => s + c.weight, 0);
-    let r = Math.random() * total;
-    let idx = 0;
-    for (; idx < arr.length; idx++) {
-      r -= arr[idx].weight;
-      if (r <= 0) break;
-    }
-    idx = Math.min(idx, arr.length - 1);
-    out.push(arr[idx]);
-    arr.splice(idx, 1);
-  }
-  return out;
-}
-
-function buildSession(progress, hardWordsSet) {
-  const dayIdx = progress.current_day - 1;
-  if (dayIdx < 0 || dayIdx >= TOTAL_DAYS) return null;
-  const dayObj = DAYS[dayIdx];
-  const newWords = dayObj.c.map((c) => ({ ...c, sourceDay: dayObj.d }));
-  const completedCount = progress.completed_days.length;
-  const reviewPool = [];
-  for (const d of DAYS) {
-    if (d.d < dayObj.d) {
-      for (const c of d.c) reviewPool.push({ ...c, sourceDay: d.d });
-    }
-  }
-  const target = Math.round(5 + (35 / 300) * completedCount);
-  const reviewCount = Math.min(target, reviewPool.length);
-  const reviewSelected = weightedSample(reviewPool, hardWordsSet, reviewCount);
-
-  // New words: always French -> English, one card each, no reverse pass.
-  const newItems = newWords.map((w) => ({
-    ...w,
-    dir: "FE",
-    key: w.i + "-new-" + dayObj.d,
-  }));
-
-  // Review words: one card each, direction chosen at random per card.
-  const reviewItems = reviewSelected.map((w) => ({
-    ...w,
-    dir: Math.random() < 0.5 ? "EF" : "FE",
-    key: w.i + "-rev-" + w.sourceDay + "-" + dayObj.d,
-  }));
-
-  const words = [...newItems, ...reviewItems];
-  return { dayObj, words, queue: words, reviewCount };
-}
-
 export default function AnkiModule({ onBack, startDay }) {
   const [phase, setPhase] = useState("loading");
   const [progress, setProgress] = useState(FRESH_PROGRESS);
   const [hardWords, setHardWords] = useState(new Set());
   const [cardStats, setCardStats] = useState({});
+  // The person's Word Bank words as cards. They join the review words each time a session is built.
+  const [customCards, setCustomCards] = useState([]);
   const [session, setSession] = useState(null);
   const [qIndex, setQIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -133,7 +86,15 @@ export default function AnkiModule({ onBack, startDay }) {
         if (rc.ok && rc.value) cs = rc.value;
         if (!rp.ok || !rh.ok || !rc.ok) failed = true;
       }
+      // Word Bank words (nothing for free accounts, and never blocks Anki if they can't be loaded).
+      let custom = [];
+      try {
+        custom = toAnkiCards(await fetchWordBank());
+      } catch {
+        custom = [];
+      }
       if (cancelled) return;
+      setCustomCards(custom);
       const finalProgress = p || FRESH_PROGRESS;
       setProgress(finalProgress);
       setHardWords(new Set(hw));
@@ -145,7 +106,7 @@ export default function AnkiModule({ onBack, startDay }) {
         // Opened from Level/Day browsing: launch a bonus practice session for
         // that specific day, leaving real progress/streak untouched.
         const clamped = Math.max(1, Math.min(startDay, TOTAL_DAYS));
-        const sess = buildSession({ ...finalProgress, current_day: clamped }, new Set(hw));
+        const sess = buildSession({ ...finalProgress, current_day: clamped }, new Set(hw), custom);
         setSession(sess);
         setIsPracticeSession(true);
         setQIndex(0);
@@ -154,7 +115,7 @@ export default function AnkiModule({ onBack, startDay }) {
       } else if (finalProgress.current_day > TOTAL_DAYS) {
         setPhase("finished");
       } else {
-        const sess = buildSession(finalProgress, new Set(hw));
+        const sess = buildSession(finalProgress, new Set(hw), custom);
         setSession(sess);
         setQIndex(0);
         setRevealed(false);
@@ -307,7 +268,7 @@ export default function AnkiModule({ onBack, startDay }) {
   }
 
   function practiceDayAgain(day) {
-    const sess = buildSession({ ...progress, current_day: day }, hardWords);
+    const sess = buildSession({ ...progress, current_day: day }, hardWords, customCards);
     setSession(sess);
     setIsPracticeSession(true);
     setQIndex(0);
@@ -320,7 +281,7 @@ export default function AnkiModule({ onBack, startDay }) {
       setPhase("finished");
       return;
     }
-    const sess = buildSession(progress, hardWords);
+    const sess = buildSession(progress, hardWords, customCards);
     setSession(sess);
     setQIndex(0);
     setRevealed(false);
@@ -526,7 +487,7 @@ export default function AnkiModule({ onBack, startDay }) {
   const directionLabel = currentItem.dir === "EF" ? "English → French" : "French → English";
   const isLast = qIndex + 1 >= session.queue.length;
   const isFirst = qIndex === 0;
-  const isReview = currentItem.sourceDay !== session.dayObj.d;
+  const isReview = currentItem.custom || currentItem.sourceDay !== session.dayObj.d;
 
   return (
     <div style={wrapStyle} className="min-h-screen flex flex-col">
@@ -578,7 +539,7 @@ export default function AnkiModule({ onBack, startDay }) {
             </span>
             <span className="text-xs" style={{ color: COLORS.muted }}>
               {qIndex + 1} / {session.queue.length}
-              {isReview ? " · review" : " · new"}
+              {currentItem.custom ? " · my word" : isReview ? " · review" : " · new"}
             </span>
           </div>
 
