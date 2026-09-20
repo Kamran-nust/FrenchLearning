@@ -1,6 +1,7 @@
 package com.frenchnclc7.app.data
 
 import kotlin.math.floor
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
 import kotlinx.serialization.Serializable
@@ -22,6 +23,8 @@ data class AnkiItem(
     val sourceDay: Int,
     /** Unique within the session. */
     val key: String,
+    /** A word from the person's Word Bank rather than the plan. */
+    val custom: Boolean = false,
 )
 
 /** Today's queue: the day's new words first, then review words from earlier days. */
@@ -73,28 +76,52 @@ object AnkiLogic {
         return out
     }
 
-    /** Builds the queue for [currentDay]; null if that day doesn't exist. */
+    /**
+     * Builds the queue for [currentDay]; null if that day doesn't exist.
+     *  - [custom]: the person's Word Bank words; they join the review pool and are never "new".
+     *  - [tier]: Super gets a bigger day (25 rising to 50 cards) and Free/Premium sessions are held to their daily
+     *    limit. Leave it null and the session is sized as it always was.
+     *  - [practice] and [seen]: extra practice may only use what is left of today's allowance.
+     */
     fun buildSession(
         days: List<DayContent>,
         currentDay: Int,
         completedCount: Int,
         hard: Set<String>,
         random: Random = Random.Default,
+        custom: List<WordBankCard> = emptyList(),
+        tier: Tier? = null,
+        practice: Boolean = false,
+        seen: Int = 0,
     ): AnkiSession? {
         val today = days.firstOrNull { it.day == currentDay } ?: return null
-        val newItems = today.cards.map {
+        var newCards = today.cards
+        var target = reviewTarget(completedCount)
+        if (tier != null) {
+            if (tier == Tier.SUPER) target = max(0, AnkiLimits.superDayTotal(completedCount) - newCards.size)
+            val cap = AnkiLimits.sessionCap(tier, practice, seen)
+            if (cap != null) {
+                newCards = newCards.take(cap)
+                target = AnkiLimits.clampReviews(target, cap, newCards.size)
+            }
+        }
+        val newItems = newCards.map {
             AnkiItem(it.i, it.f, it.e, Direction.FE, today.day, it.i + "-new-" + today.day)
         }
         val pool = days.filter { it.day < today.day }.flatMap { d -> d.cards.map { it to d.day } }
-        val reviewCount = min(reviewTarget(completedCount), pool.size)
-        val reviewItems = weightedSample(pool, hard, reviewCount, random).map { (card, sourceDay) ->
+        val slots = WordBankLogic.splitReviewSlots(target, pool.size, custom.size)
+        val picked = weightedSample(pool, hard, slots.builtin, random) + weightedSample(custom, hard, slots.custom, random)
+        // Without Word Bank words the order is exactly as before; with them, mix the two kinds together.
+        val selected = if (slots.custom > 0) picked.shuffled(random) else picked
+        val reviewItems = selected.map { (card, sourceDay) ->
             AnkiItem(
                 card.i, card.f, card.e,
                 if (random.nextDouble() < 0.5) Direction.EF else Direction.FE,
                 sourceDay, card.i + "-rev-" + sourceDay + "-" + today.day,
+                custom = WordBankLogic.isWordBankCard(card.i),
             )
         }
-        return AnkiSession(today.day, newItems + reviewItems, reviewCount)
+        return AnkiSession(today.day, newItems + reviewItems, reviewItems.size)
     }
 
     /** After a real (not practice) day: every card in the queue has been seen once more. */

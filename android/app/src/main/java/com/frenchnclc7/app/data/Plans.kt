@@ -44,6 +44,7 @@ object PlansLogic {
             PlanRow("Direct Kwiziq and TV5MONDE lesson links", PlanCell.Text("Search only"), PlanCell.Included),
         )),
         PlanGroup("Downloads and AI", listOf(
+            PlanRow("Anki words per day", PlanCell.Text("${AnkiLimits.FREE_DAILY} per day"), PlanCell.Text("${AnkiLimits.PREMIUM_DAILY} per day")),
             PlanRow("Grammar chapter PDFs", PlanCell.NotIncluded, PlanCell.Included),
             PlanRow("Day-plan PDF", PlanCell.NotIncluded, PlanCell.Text("1 per day")),
             PlanRow("Writing AI feedback", PlanCell.Text("$AI_FEEDBACK_FREE per day"), PlanCell.Text("$AI_FEEDBACK_PREMIUM per day")),

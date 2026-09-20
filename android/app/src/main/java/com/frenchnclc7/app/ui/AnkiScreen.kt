@@ -32,7 +32,9 @@ import androidx.compose.ui.unit.sp
 import com.frenchnclc7.app.AnkiState
 import com.frenchnclc7.app.AppViewModel
 import com.frenchnclc7.app.StudyPhase
+import com.frenchnclc7.app.data.AnkiLimits
 import com.frenchnclc7.app.data.Direction
+import com.frenchnclc7.app.data.Tier
 import com.frenchnclc7.app.data.TOTAL_DAYS
 
 /**
@@ -40,8 +42,9 @@ import com.frenchnclc7.app.data.TOTAL_DAYS
  * days (random direction), with pronunciation, "hard" flags, a streak and bonus practice rounds.
  */
 @Composable
-fun AnkiScreen(a: AnkiState, vm: AppViewModel) {
+fun AnkiScreen(a: AnkiState, tier: Tier, vm: AppViewModel) {
     val c = LocalColors.current
+    val limit = AnkiLimits.dailyLimit(tier)
 
     if (a.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -98,6 +101,27 @@ fun AnkiScreen(a: AnkiState, vm: AppViewModel) {
         }
 
         when {
+            a.limitHit -> Column(
+                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("🔒", fontSize = 36.sp)
+                Spacer(Modifier.height(12.dp))
+                Text("Today's limit reached", color = c.text, fontSize = 24.sp, fontFamily = FontFamily.Serif)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "You've seen ${limit ?: 0} words today. Your limit resets tomorrow" +
+                        (if (tier == Tier.FREE) ", and Premium raises it to ${AnkiLimits.PREMIUM_DAILY} words a day." else "."),
+                    color = c.muted, fontSize = 14.sp, textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(24.dp))
+                if (tier == Tier.FREE) {
+                    AnkiButton("See plans", filled = true) { vm.openPlans() }
+                    Spacer(Modifier.height(10.dp))
+                }
+                AnkiButton("Back to home", filled = false) { vm.home() }
+            }
+
             a.phase == StudyPhase.FINISHED -> Column(
                 Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -126,7 +150,7 @@ fun AnkiScreen(a: AnkiState, vm: AppViewModel) {
 
             item == null || session == null -> Text("Nothing to show.", color = c.muted, fontSize = 14.sp, modifier = Modifier.padding(24.dp))
 
-            else -> Card(a, item, session.items.size, session.dayNumber, vm)
+            else -> Card(a, item, session.items.size, session.dayNumber, limit, vm)
         }
 
         // Reset
@@ -149,7 +173,7 @@ fun AnkiScreen(a: AnkiState, vm: AppViewModel) {
 }
 
 @Composable
-private fun Card(a: AnkiState, item: com.frenchnclc7.app.data.AnkiItem, total: Int, sessionDay: Int, vm: AppViewModel) {
+private fun Card(a: AnkiState, item: com.frenchnclc7.app.data.AnkiItem, total: Int, sessionDay: Int, limit: Int?, vm: AppViewModel) {
     val c = LocalColors.current
     val isHard = item.cardId in a.hard
     val prompt = if (item.dir == Direction.EF) item.english else item.french
@@ -159,13 +183,19 @@ private fun Card(a: AnkiState, item: com.frenchnclc7.app.data.AnkiItem, total: I
     val isReview = item.sourceDay != sessionDay
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+        if (limit != null) {
+            Text(
+                "Words today: ${minOf(a.dailySeen, limit)} of $limit", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            )
+        }
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (item.dir == Direction.EF) "English → French" else "French → English",
                 color = c.link, fontSize = 11.sp,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(c.accentSoft).padding(horizontal = 10.dp, vertical = 4.dp),
             )
-            Text("${a.index + 1} / $total" + (if (isReview) " · review" else " · new"), color = c.muted, fontSize = 12.sp)
+            Text("${a.index + 1} / $total" + (if (item.custom) " · my word" else if (isReview) " · review" else " · new"), color = c.muted, fontSize = 12.sp)
         }
         Spacer(Modifier.height(8.dp))
 

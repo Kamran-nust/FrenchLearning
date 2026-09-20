@@ -151,6 +151,21 @@ fun HomeScreen(state: UiState, vm: AppViewModel) {
                 ) { Text("Go") }
             }
             Spacer(Modifier.height(14.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card)
+                    .border(BorderStroke(1.dp, c.accent), RoundedCornerShape(16.dp))
+                    .clickable { vm.openWordBank() }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(40.dp).clip(CircleShape).background(c.accentSoft), contentAlignment = Alignment.Center) { Text("📚", fontSize = 18.sp) }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Word Bank", color = c.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("Your own words, mixed into Anki reviews", color = c.muted, fontSize = 12.sp)
+                }
+                Text(if (state.tier.atLeast(Tier.PREMIUM)) "→" else "🔒 Premium", color = if (state.tier.atLeast(Tier.PREMIUM)) c.accent else c.muted, fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(14.dp))
             Text(
                 "Plans and pricing", color = c.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))

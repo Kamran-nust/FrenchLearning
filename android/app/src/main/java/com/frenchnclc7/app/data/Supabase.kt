@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -222,6 +223,70 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
         )
         if (reply.status == 401) throw ApiException("Session expired.", 401)
         if (reply.status !in 200..299) throw ApiException(message(reply, "Couldn't save."), reply.status)
+    }
+
+    // ---- Word Bank ------------------------------------------------------------------------------
+
+    /** The person's words. The database first copies in any starter words they don't have yet; free accounts get none. */
+    suspend fun wordBankList(session: Session): List<WordBankWord> {
+        val reply = call("POST", "/rest/v1/rpc/word_bank_list", session.accessToken, buildJsonObject { })
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) throw ApiException(message(reply, "Couldn't load your words."), reply.status)
+        return WordBankLogic.parseList(reply.body) ?: throw ApiException("Couldn't read your words.")
+    }
+
+    private fun wordBankReply(reply: Reply, fallback: String): WordBankWord {
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) {
+            if (reply.body.contains("word_bank_limit")) throw ApiException("word_bank_limit", reply.status)
+            throw ApiException(message(reply, fallback), reply.status)
+        }
+        return WordBankLogic.parseList(reply.body)?.firstOrNull() ?: throw ApiException(fallback)
+    }
+
+    suspend fun wordBankAdd(session: Session, french: String, english: String, note: String?, addedDay: Int): WordBankWord =
+        wordBankReply(
+            call(
+                "POST", "/rest/v1/word_bank_words", session.accessToken,
+                buildJsonObject {
+                    put("french", french); put("english", english)
+                    put("note", if (note == null) JsonNull else JsonPrimitive(note))
+                    put("added_day", addedDay)
+                },
+                mapOf("Prefer" to "return=representation"),
+            ),
+            "Couldn't save that word.",
+        )
+
+    suspend fun wordBankUpdate(session: Session, id: String, french: String, english: String, note: String?): WordBankWord =
+        wordBankReply(
+            call(
+                "PATCH", "/rest/v1/word_bank_words?id=eq.$id", session.accessToken,
+                buildJsonObject {
+                    put("french", french); put("english", english)
+                    put("note", if (note == null) JsonNull else JsonPrimitive(note))
+                },
+                mapOf("Prefer" to "return=representation"),
+            ),
+            "Couldn't save the change.",
+        )
+
+    /** Their own words are deleted; a starter word is only hidden, so it stays gone and can be brought back. */
+    suspend fun wordBankRemove(session: Session, word: WordBankWord) {
+        val reply = if (word.starter_id != null) {
+            call("PATCH", "/rest/v1/word_bank_words?id=eq.${word.id}", session.accessToken, buildJsonObject { put("hidden", true) })
+        } else {
+            call("DELETE", "/rest/v1/word_bank_words?id=eq.${word.id}", session.accessToken)
+        }
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) throw ApiException(message(reply, "Couldn't remove that word."), reply.status)
+    }
+
+    /** Brings back hidden starter words and undoes edits to them. */
+    suspend fun wordBankResetStarter(session: Session) {
+        val reply = call("POST", "/rest/v1/rpc/word_bank_reset_starter", session.accessToken, buildJsonObject { })
+        if (reply.status == 401) throw ApiException("Session expired.", 401)
+        if (reply.status !in 200..299) throw ApiException(message(reply, "Couldn't restore the starter words."), reply.status)
     }
 
     /** Where the person stands with today's AI feedback allowance; null if it can't be read. */

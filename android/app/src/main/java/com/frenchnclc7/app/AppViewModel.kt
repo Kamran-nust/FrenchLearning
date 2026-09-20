@@ -5,7 +5,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.frenchnclc7.app.data.AdminLogic
 import com.frenchnclc7.app.data.AdminUser
+import com.frenchnclc7.app.data.AnkiLimits
 import com.frenchnclc7.app.data.AnkiLogic
+import com.frenchnclc7.app.data.WordBankCard
+import com.frenchnclc7.app.data.WordBankLogic
+import com.frenchnclc7.app.data.WordBankWord
 import com.frenchnclc7.app.data.AnkiSession
 import com.frenchnclc7.app.data.ApiException
 import com.frenchnclc7.app.data.CardStat
@@ -70,6 +74,8 @@ sealed interface Screen {
     data object Admin : Screen
     /** Free versus Premium, with monthly/yearly. */
     data object Plans : Screen
+    /** The personal word list (Premium and Super). */
+    data object WordBank : Screen
 }
 
 enum class StudyPhase { DAY, COMPLETE, FINISHED }
@@ -142,6 +148,36 @@ data class AnkiState(
     val loadFailed: Boolean = false,
     val saveFailed: Boolean = false,
     val confirmingReset: Boolean = false,
+    /** The person's Word Bank words as cards; they join the review words each time a session is built. */
+    val customCards: List<WordBankCard> = emptyList(),
+    /** Cards seen today (saved as anki-daily). */
+    val dailySeen: Int = 0,
+    /** Cards of the current session already added to today's total. */
+    val counted: Int = 0,
+    /** Today's limit is used up, so no new session can start until tomorrow. */
+    val limitHit: Boolean = false,
+)
+
+/** The Word Bank screen: the list, the add form, editing and the small confirmations. */
+data class WordBankState(
+    /** null while loading. */
+    val words: List<WordBankWord>? = null,
+    val loadError: Boolean = false,
+    val query: String = "",
+    val showCount: Int = 100,
+    val french: String = "",
+    val english: String = "",
+    val note: String = "",
+    val addError: String? = null,
+    val busy: Boolean = false,
+    val editingId: String? = null,
+    val editFrench: String = "",
+    val editEnglish: String = "",
+    val editNote: String = "",
+    val editError: String? = null,
+    val confirmId: String? = null,
+    val confirmReset: Boolean = false,
+    val notice: String? = null,
 )
 
 /** A finished day-plan PDF waiting to be saved to a place the user picks. */
@@ -190,6 +226,7 @@ data class UiState(
     val dayPlan: DayPlanState = DayPlanState(),
     val admin: AdminState? = null,
     val plans: PlansState = PlansState(),
+    val wordBank: WordBankState? = null,
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -693,8 +730,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun ankiDays() = plan.days(PlanSection.ANKI)
 
-    private fun buildAnkiSession(day: Int, progress: SectionProgress, hard: Set<String>): AnkiSession? =
-        AnkiLogic.buildSession(ankiDays(), day, progress.completed_days.size, hard)
+    private fun today(): String = ProgressLogic.dateKey(LocalDate.now())
+
+    /** Saves today's card count (shared with the web app as anki-daily). */
+    private fun persistDaily(seen: Int) = persistAnki("anki-daily", AnkiLimits.encodeCount(today(), seen))
+
+    /**
+     * Starts a session for [day]: sized for the person's tier, with their Word Bank words mixed into the reviews,
+     * and the first card counted towards today's limit. If today's limit is already used up, no session starts.
+     */
+    private fun newAnkiSession(a: AnkiState, day: Int, practice: Boolean): AnkiState {
+        val tier = _state.value.tier
+        if (AnkiLimits.limitReached(tier, a.dailySeen)) {
+            return a.copy(session = null, index = 0, revealed = false, practice = practice, phase = StudyPhase.DAY, limitHit = true, counted = 0)
+        }
+        val session = AnkiLogic.buildSession(
+            ankiDays(), day, a.progress.completed_days.size, a.hard,
+            custom = a.customCards, tier = tier, practice = practice, seen = a.dailySeen,
+        )
+        val first = if (AnkiLimits.dailyLimit(tier) != null && session != null && session.items.isNotEmpty()) 1 else 0
+        return a.copy(
+            session = session, index = 0, revealed = false, practice = practice, phase = StudyPhase.DAY,
+            limitHit = false, counted = first, dailySeen = a.dailySeen + first,
+        )
+    }
 
     /**
      * Opens the flashcards. With no [practiceDay] it is today's real session; with one it is a bonus
@@ -707,39 +766,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val reads = authed { s ->
-                    Triple(api.readAppValue(s, "progress"), api.readAppValue(s, "hard-words"), api.readAppValue(s, "card-stats"))
+                    listOf(
+                        api.readAppValue(s, "progress"), api.readAppValue(s, "hard-words"),
+                        api.readAppValue(s, "card-stats"), api.readAppValue(s, "anki-daily"),
+                    )
                 }
                 var failed = false
-                val progress = when (val r = reads.first) {
+                val progress = when (val r = reads[0]) {
                     AppRead.Empty -> SectionProgress()
                     AppRead.Failed -> { failed = true; SectionProgress() }
                     is AppRead.Found -> ProgressLogic.decode(r.text) ?: run { failed = true; SectionProgress() }
                 }
-                val hard: Set<String> = when (val r = reads.second) {
+                val hard: Set<String> = when (val r = reads[1]) {
                     AppRead.Empty -> emptySet()
                     AppRead.Failed -> { failed = true; emptySet() }
                     is AppRead.Found -> AnkiLogic.decodeHard(r.text) ?: run { failed = true; emptySet() }
                 }
-                val stats: Map<String, CardStat> = when (val r = reads.third) {
+                val stats: Map<String, CardStat> = when (val r = reads[2]) {
                     AppRead.Empty -> emptyMap()
                     AppRead.Failed -> { failed = true; emptyMap() }
                     is AppRead.Found -> AnkiLogic.decodeStats(r.text) ?: run { failed = true; emptyMap() }
                 }
+                val seen = when (val r = reads[3]) {
+                    AppRead.Empty -> 0
+                    AppRead.Failed -> { failed = true; 0 }
+                    is AppRead.Found -> AnkiLimits.todaysCount(r.text, today())
+                }
                 ankiLoadFailed = failed
+                // Word Bank words (none for free accounts); never blocks Anki if they can't be loaded.
+                val custom = try { WordBankLogic.toCards(authed { api.wordBankList(it) }) } catch (e: ApiException) { emptyList() }
                 val practice = practiceDay != null
                 val finished = !practice && progress.current_day > TOTAL_DAYS
-                val session = when {
-                    practice -> buildAnkiSession(practiceDay!!.coerceIn(1, TOTAL_DAYS), progress, hard)
-                    finished -> null
-                    else -> buildAnkiSession(progress.current_day, progress, hard)
-                }
-                updateAnki {
-                    it.copy(
-                        loading = false, progress = progress, hard = hard, stats = stats, loadFailed = failed,
-                        session = session, index = 0, revealed = false, practice = practice,
-                        phase = if (finished) StudyPhase.FINISHED else StudyPhase.DAY,
-                    )
-                }
+                val base = AnkiState(
+                    loading = false, progress = progress, hard = hard, stats = stats, loadFailed = failed,
+                    customCards = custom, dailySeen = seen,
+                )
+                val started = if (finished) base.copy(phase = StudyPhase.FINISHED)
+                else newAnkiSession(base, if (practice) practiceDay!!.coerceIn(1, TOTAL_DAYS) else progress.current_day, practice)
+                updateAnki { started }
+                if (started.dailySeen != seen) persistDaily(started.dailySeen)
             } catch (e: ApiException) {
                 // Couldn't read: never treat that as "nothing saved" (saving stays off).
                 ankiLoadFailed = true
@@ -766,7 +831,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun ankiNext() {
         val a = _state.value.anki ?: return
         val session = a.session ?: return
-        if (a.index + 1 >= session.items.size) finishAnkiSession() else updateAnki { it.copy(index = a.index + 1, revealed = false) }
+        val next = a.index + 1
+        if (next >= session.items.size) {
+            finishAnkiSession()
+            return
+        }
+        // Only cards not seen before are added to today's total, so going back over a card doesn't count it twice.
+        val counted = if (AnkiLimits.dailyLimit(_state.value.tier) != null) maxOf(a.counted, next + 1) else a.counted
+        val added = counted - a.counted
+        updateAnki { it.copy(index = next, revealed = false, counted = counted, dailySeen = it.dailySeen + added) }
+        if (added > 0) persistDaily(a.dailySeen + added)
     }
 
     fun ankiPrevious() = updateAnki { if (it.index == 0) it else it.copy(index = it.index - 1, revealed = false) }
@@ -811,7 +885,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun ankiPracticeAgain(day: Int) {
         val a = _state.value.anki ?: return
         stopSpeech()
-        updateAnki { it.copy(session = buildAnkiSession(day, a.progress, a.hard), index = 0, revealed = false, practice = true, phase = StudyPhase.DAY) }
+        val started = newAnkiSession(a, day, practice = true)
+        updateAnki { started }
+        if (started.dailySeen != a.dailySeen) persistDaily(started.dailySeen)
     }
 
     fun ankiContinueToNextDay() {
@@ -821,23 +897,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             updateAnki { it.copy(phase = StudyPhase.FINISHED) }
             return
         }
-        updateAnki {
-            it.copy(session = buildAnkiSession(a.progress.current_day, a.progress, a.hard), index = 0, revealed = false, phase = StudyPhase.DAY)
-        }
+        val started = newAnkiSession(a, a.progress.current_day, practice = false)
+        updateAnki { started }
+        if (started.dailySeen != a.dailySeen) persistDaily(started.dailySeen)
     }
 
     fun ankiAskReset(confirming: Boolean) = updateAnki { it.copy(confirmingReset = confirming) }
 
     fun ankiDoReset() {
         val fresh = SectionProgress()
+        val a = _state.value.anki ?: return
         stopSpeech()
-        updateAnki {
-            it.copy(
-                progress = fresh, hard = emptySet(), stats = emptyMap(), confirmingReset = false,
-                session = buildAnkiSession(1, fresh, emptySet()), index = 0, revealed = false, practice = false,
-                phase = StudyPhase.DAY, completion = null,
-            )
-        }
+        val reset = a.copy(progress = fresh, hard = emptySet(), stats = emptyMap(), confirmingReset = false, completion = null)
+        val started = newAnkiSession(reset, 1, practice = false)
+        updateAnki { started }
+        if (started.dailySeen != a.dailySeen) persistDaily(started.dailySeen)
         persistAnki("progress", ProgressLogic.encode(fresh))
         persistAnki("hard-words", AnkiLogic.encodeHard(emptyList()))
         persistAnki("card-stats", AnkiLogic.encodeStats(emptyMap()))
@@ -974,6 +1048,144 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun updateAdmin(change: (AdminState) -> AdminState) {
         _state.update { ui -> ui.admin?.let { ui.copy(admin = change(it)) } ?: ui }
+    }
+
+    // ---- Word Bank (Premium and Super) ----
+
+    private fun updateWordBank(change: (WordBankState) -> WordBankState) {
+        _state.update { ui -> ui.wordBank?.let { ui.copy(wordBank = change(it)) } ?: ui }
+    }
+
+    /** Opens the Word Bank. Free accounts see the locked screen; the database refuses them anyway. */
+    fun openWordBank() {
+        returnTo = null
+        _state.update { it.copy(screen = Screen.WordBank, wordBank = WordBankState()) }
+        if (_state.value.tier.atLeast(Tier.PREMIUM)) loadWordBank()
+    }
+
+    fun loadWordBank() {
+        updateWordBank { it.copy(loadError = false) }
+        viewModelScope.launch {
+            try {
+                val words = authed { api.wordBankList(it) }
+                updateWordBank { it.copy(words = words) }
+            } catch (e: ApiException) {
+                updateWordBank { it.copy(words = it.words ?: emptyList(), loadError = true) }
+            }
+        }
+    }
+
+    fun wbQuery(q: String) = updateWordBank { it.copy(query = q, showCount = 100) }
+    fun wbShowMore() = updateWordBank { it.copy(showCount = it.showCount + 100) }
+    fun wbFrench(v: String) = updateWordBank { it.copy(french = v.take(WordBankLogic.MAX_FRENCH)) }
+    fun wbEnglish(v: String) = updateWordBank { it.copy(english = v.take(WordBankLogic.MAX_ENGLISH)) }
+    fun wbNote(v: String) = updateWordBank { it.copy(note = v.take(WordBankLogic.MAX_NOTE)) }
+    fun wbEditFrench(v: String) = updateWordBank { it.copy(editFrench = v.take(WordBankLogic.MAX_FRENCH)) }
+    fun wbEditEnglish(v: String) = updateWordBank { it.copy(editEnglish = v.take(WordBankLogic.MAX_ENGLISH)) }
+    fun wbEditNote(v: String) = updateWordBank { it.copy(editNote = v.take(WordBankLogic.MAX_NOTE)) }
+    fun wbAskDelete(id: String?) = updateWordBank { it.copy(confirmId = id) }
+    fun wbAskReset(confirming: Boolean) = updateWordBank { it.copy(confirmReset = confirming) }
+    fun wbCancelEdit() = updateWordBank { it.copy(editingId = null, editError = null) }
+
+    fun wbStartEdit(w: WordBankWord) = updateWordBank {
+        it.copy(editingId = w.id, editFrench = w.french, editEnglish = w.english, editNote = w.note ?: "", editError = null, confirmId = null)
+    }
+
+    /** The day the person is on in Anki, stamped on each word they add (1 if it can't be read). */
+    private suspend fun currentAnkiDay(): Int = try {
+        when (val r = authed { api.readAppValue(it, "progress") }) {
+            is AppRead.Found -> ProgressLogic.decode(r.text)?.current_day ?: 1
+            else -> 1
+        }.coerceIn(1, TOTAL_DAYS)
+    } catch (e: ApiException) {
+        1
+    }
+
+    fun wbAdd() {
+        val w = _state.value.wordBank ?: return
+        val tier = _state.value.tier
+        val words = w.words ?: return
+        val visible = words.filter { !it.hidden }
+        val limit = WordBankLogic.ownLimit(tier)
+        val limitMessage = "You've reached your limit of $limit words."
+        val problem = WordBankLogic.validate(w.french, w.english, w.note)
+            ?: if (!WordBankLogic.hasRoom(tier, visible)) limitMessage
+            else if (WordBankLogic.isDuplicate(visible, w.french, w.english)) "That word is already in your list."
+            else null
+        if (problem != null) {
+            updateWordBank { it.copy(addError = problem, notice = null) }
+            return
+        }
+        updateWordBank { it.copy(busy = true, addError = null, notice = null) }
+        viewModelScope.launch {
+            try {
+                val clean = WordBankLogic.clean(w.french, w.english, w.note)
+                val day = currentAnkiDay()
+                val saved = authed { api.wordBankAdd(it, clean.french, clean.english, clean.note, day) }
+                updateWordBank {
+                    it.copy(
+                        words = (it.words ?: emptyList()) + saved, french = "", english = "", note = "", busy = false,
+                        notice = "Added. It will appear in your Anki reviews from your next session.",
+                    )
+                }
+            } catch (e: ApiException) {
+                updateWordBank {
+                    it.copy(busy = false, addError = if (e.message == "word_bank_limit") limitMessage else "Couldn't save that word. Try again.")
+                }
+            }
+        }
+    }
+
+    fun wbSaveEdit(word: WordBankWord) {
+        val w = _state.value.wordBank ?: return
+        val visible = (w.words ?: return).filter { !it.hidden }
+        val problem = WordBankLogic.validate(w.editFrench, w.editEnglish, w.editNote)
+            ?: if (WordBankLogic.isDuplicate(visible, w.editFrench, w.editEnglish, word.id)) "That word is already in your list." else null
+        if (problem != null) {
+            updateWordBank { it.copy(editError = problem) }
+            return
+        }
+        updateWordBank { it.copy(busy = true) }
+        viewModelScope.launch {
+            try {
+                val clean = WordBankLogic.clean(w.editFrench, w.editEnglish, w.editNote)
+                val saved = authed { api.wordBankUpdate(it, word.id, clean.french, clean.english, clean.note) }
+                updateWordBank { ws -> ws.copy(words = ws.words?.map { x -> if (x.id == word.id) saved else x }, editingId = null, busy = false) }
+            } catch (e: ApiException) {
+                updateWordBank { it.copy(busy = false, editError = "Couldn't save the change. Try again.") }
+            }
+        }
+    }
+
+    fun wbRemove(word: WordBankWord) {
+        updateWordBank { it.copy(busy = true, notice = null) }
+        viewModelScope.launch {
+            try {
+                authed { api.wordBankRemove(it, word) }
+                updateWordBank { ws ->
+                    ws.copy(
+                        words = if (WordBankLogic.isOwn(word)) ws.words?.filter { x -> x.id != word.id }
+                        else ws.words?.map { x -> if (x.id == word.id) x.copy(hidden = true) else x },
+                        confirmId = null, busy = false,
+                    )
+                }
+            } catch (e: ApiException) {
+                updateWordBank { it.copy(busy = false, notice = "Couldn't remove that word. Try again.") }
+            }
+        }
+    }
+
+    fun wbReset() {
+        updateWordBank { it.copy(busy = true, notice = null) }
+        viewModelScope.launch {
+            try {
+                authed { api.wordBankResetStarter(it) }
+                val words = authed { api.wordBankList(it) }
+                updateWordBank { it.copy(words = words, confirmReset = false, busy = false, notice = "Starter words restored.") }
+            } catch (e: ApiException) {
+                updateWordBank { it.copy(busy = false, notice = "Couldn't restore the starter words. Try again.") }
+            }
+        }
     }
 
     // ---- Plans (Premium subscription) ----

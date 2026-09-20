@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.frenchnclc7.app.ui.AdminScreen
 import com.frenchnclc7.app.ui.PlansScreen
+import com.frenchnclc7.app.ui.WordBankScreen
 import com.frenchnclc7.app.ui.AnkiScreen
 import com.frenchnclc7.app.ui.AuthScreen
 import com.frenchnclc7.app.ui.DayScreen
@@ -61,9 +62,10 @@ class MainActivity : ComponentActivity() {
                         Screen.Home -> HomeScreen(state, vm)
                         Screen.Study -> state.study?.let { StudyScreen(it, state.tier, vm) }
                         Screen.Writing -> state.writing?.let { WritingScreen(it, vm) }
-                        Screen.Anki -> state.anki?.let { AnkiScreen(it, vm) }
+                        Screen.Anki -> state.anki?.let { AnkiScreen(it, state.tier, vm) }
                         Screen.Admin -> state.admin?.let { AdminScreen(it, state.session?.userId, vm) }
                         Screen.Plans -> PlansScreen(state.plans, state.tier, vm)
+                        Screen.WordBank -> state.wordBank?.let { WordBankScreen(it, state.tier, vm) }
                         is Screen.Day -> DayScreen(screen, state.tier, state.dayPlan, vm)
                     }
                 }
