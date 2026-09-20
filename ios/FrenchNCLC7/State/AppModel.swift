@@ -695,8 +695,9 @@ final class AppModel: ObservableObject {
     }
 
     /// Called on every change to the text box. The text is saved a second after typing stops.
-    func writingDraftChanged(_ text: String) {
+    func writingDraftChanged(_ rawText: String) {
         guard var w = writing, !w.loading else { return }
+        let text = String(rawText.prefix(WritingLogic.maxDraftChars))
         let day = w.viewDay
         w.entries[day] = WritingEntry(text: text, feedback: w.entries[day]?.feedback)
         w.saveState = .saving

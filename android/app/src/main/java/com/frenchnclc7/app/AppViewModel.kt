@@ -679,9 +679,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Called on every change to the text box. The text is saved a second after typing stops. */
-    fun writingDraftChanged(text: String) {
+    fun writingDraftChanged(rawText: String) {
         val w = _state.value.writing ?: return
         if (w.loading) return
+        val text = rawText.take(WritingLogic.MAX_DRAFT_CHARS)
         val day = w.viewDay
         val entries = w.entries + (day to (w.entries[day] ?: WritingEntry()).copy(text = text))
         updateWriting { it.copy(entries = entries, saveState = SaveState.SAVING) }

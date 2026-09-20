@@ -27,6 +27,10 @@ function countWords(text) {
   return trimmed.split(/\s+/).length;
 }
 
+// The most characters a single day's draft can hold. Matches MAX_INPUT_CHARS in the writing-feedback
+// function (so you can't type more than you can submit) and keeps writing-entries a bounded size.
+const MAX_DRAFT_CHARS = 4000;
+
 export default function WritingModule({ onBack, startDay }) {
   const [phase, setPhase] = useState("loading");
   const [progress, setProgress] = useState(FRESH_PROGRESS);
@@ -132,7 +136,8 @@ export default function WritingModule({ onBack, startDay }) {
     if (viewDay < WRITING_TOTAL) switchToDay(viewDay + 1);
   }
 
-  function handleDraftChange(text) {
+  function handleDraftChange(rawText) {
+    const text = rawText.length > MAX_DRAFT_CHARS ? rawText.slice(0, MAX_DRAFT_CHARS) : rawText;
     setDraft(text);
     setSaveState("saving");
     const next = { ...entriesRef.current, [viewDay]: { ...(entriesRef.current[viewDay] || {}), text } };
@@ -390,6 +395,7 @@ export default function WritingModule({ onBack, startDay }) {
                 <textarea
                   value={draft}
                   onChange={(e) => handleDraftChange(e.target.value)}
+                  maxLength={MAX_DRAFT_CHARS}
                   placeholder="Écrivez ici…"
                   className="w-full text-sm rounded-lg p-3 leading-relaxed"
                   style={{

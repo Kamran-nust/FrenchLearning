@@ -24,6 +24,12 @@ data class WritingEntry(val text: String? = null, val feedback: String? = null)
  * (a JSON object keyed by day number, the same as the web app so entries are shared).
  */
 object WritingLogic {
+    /**
+     * The most characters a single day's draft can hold. Matches MAX_INPUT_CHARS in the writing-feedback
+     * function (so you can't type more than you can submit) and keeps writing-entries a bounded size.
+     */
+    const val MAX_DRAFT_CHARS = 4000
+
     // Omit missing fields (JavaScript leaves out undefined ones) and ignore anything unknown.
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
     private val entriesSerializer = MapSerializer(String.serializer(), WritingEntry.serializer())

@@ -172,7 +172,7 @@ private fun WritingDay(w: WritingState, viewed: DayContent, vm: AppViewModel) {
             Column {
                 OutlinedTextField(
                     value = draft,
-                    onValueChange = { draft = it; vm.writingDraftChanged(it) },
+                    onValueChange = { val capped = it.take(WritingLogic.MAX_DRAFT_CHARS); draft = capped; vm.writingDraftChanged(capped) },
                     placeholder = { Text("Écrivez ici…", color = c.muted) },
                     minLines = 6,
                     colors = OutlinedTextFieldDefaults.colors(

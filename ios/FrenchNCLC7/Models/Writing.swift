@@ -15,6 +15,10 @@ struct WritingEntry: Codable, Equatable {
 /// Writing rules that match the web app: word target, word count, the saved-entries format
 /// (a JSON object keyed by day number, the same as the web app so entries are shared).
 enum WritingLogic {
+    /// The most characters a single day's draft can hold. Matches MAX_INPUT_CHARS in the writing-feedback
+    /// function (so you can't type more than you can submit) and keeps writing-entries a bounded size.
+    static let maxDraftChars = 4000
+
     /// "Write a 60-word paragraph" gives 60; nil if the task doesn't name a length.
     static func extractWordTarget(_ task: String) -> Int? {
         guard let regex = try? NSRegularExpression(pattern: "(\\d+)[\\s-]*words?\\b", options: [.caseInsensitive]),

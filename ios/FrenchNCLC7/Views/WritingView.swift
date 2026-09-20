@@ -183,7 +183,10 @@ private struct WritingDayCard: View {
                     .background(c.bg)
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(c.border))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .onChange(of: draft) { newValue in model.writingDraftChanged(newValue) }
+                    .onChange(of: draft) { newValue in
+                        if newValue.count > WritingLogic.maxDraftChars { draft = String(newValue.prefix(WritingLogic.maxDraftChars)) }
+                        model.writingDraftChanged(draft)
+                    }
 
                     HStack {
                         Text(target != nil ? "\(count) / \(target!) words" : "\(count) words")
