@@ -109,6 +109,25 @@ struct HomeView: View {
                     }
                     .padding(.top, 16)
 
+                    // Word Bank: the person's own words (Premium and Super; free accounts see it locked)
+                    Button { model.openWordBank() } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("📚 Word Bank").font(.system(size: 15, weight: .medium)).foregroundColor(c.text)
+                                Text("Your own words, mixed into Anki reviews").font(.system(size: 12)).foregroundColor(c.muted)
+                            }
+                            Spacer()
+                            Text(model.tier.atLeast(.premium) ? "›" : "🔒 Premium")
+                                .font(.system(size: model.tier.atLeast(.premium) ? 22 : 12))
+                                .foregroundColor(model.tier.atLeast(.premium) ? c.accent : c.muted)
+                        }
+                        .padding(16)
+                        .background(c.card)
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(c.accent))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .padding(.top, 14)
+
                     // Super users only: manage everyone's tier (the database refuses anyone else too)
                     if model.tier == .superUser {
                         Button { model.openAdmin() } label: {

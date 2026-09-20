@@ -16,6 +16,8 @@ enum Screen: Equatable {
     case anki
     /// Manage users' tiers (super users only).
     case admin
+    /// The personal word list (Premium and Super).
+    case wordBank
 }
 
 enum StudyPhase: Equatable {
@@ -101,6 +103,36 @@ struct AnkiState: Equatable {
     var loadFailed = false
     var saveFailed = false
     var confirmingReset = false
+    /// The person's Word Bank words; they join the review words each time a session is built.
+    var customWords: [WordBankWord] = []
+    /// Cards seen today (saved as anki-daily).
+    var dailySeen = 0
+    /// Cards of the current session already added to today's total.
+    var counted = 0
+    /// Today's limit is used up, so no new session can start until tomorrow.
+    var limitHit = false
+}
+
+/// The Word Bank screen: the list, the add form, editing and the small confirmations.
+struct WordBankState: Equatable {
+    /// nil while loading.
+    var words: [WordBankWord]?
+    var loadError = false
+    var query = ""
+    var showCount = 100
+    var french = ""
+    var english = ""
+    var note = ""
+    var addError: String?
+    var busy = false
+    var editingId: String?
+    var editFrench = ""
+    var editEnglish = ""
+    var editNote = ""
+    var editError: String?
+    var confirmId: String?
+    var confirmReset = false
+    var notice: String?
 }
 
 /// A finished day-plan PDF waiting to be saved (through the share sheet: "Save to Files").
@@ -147,6 +179,7 @@ final class AppModel: ObservableObject {
     @Published var anki: AnkiState?
     @Published var dayPlan = DayPlanState()
     @Published var admin: AdminState?
+    @Published var wordBank: WordBankState?
 
     let plan = PlanRepository()
     private let api = SupabaseAPI()
@@ -393,6 +426,7 @@ final class AppModel: ObservableObject {
         writing = nil
         anki = nil
         admin = nil
+        wordBank = nil
         screen = .home
         if hadStudy { refreshOverview() }
     }
@@ -743,8 +777,40 @@ final class AppModel: ObservableObject {
         anki = a
     }
 
-    private func buildAnkiSession(day: Int, progress: SectionProgress, hard: [String]) -> AnkiSession? {
-        AnkiLogic.buildSession(days: plan.days(.anki), currentDay: day, completedCount: progress.completed_days.count, hard: Set(hard))
+    private func todayKey() -> String { StudyLogic.dateKey(Date()) }
+
+    /// Saves today's card count (shared with the web app as anki-daily).
+    private func persistDaily(_ seen: Int) {
+        persistAnki("anki-daily", AnkiLimits.encodeCount(date: todayKey(), seen: seen))
+    }
+
+    /// Starts a session for `day`: sized for the person's tier, with their Word Bank words mixed into the reviews,
+    /// and the first card counted towards today's limit. If today's limit is already used up, no session starts.
+    private func newAnkiSession(_ a: AnkiState, day: Int, practice: Bool) -> AnkiState {
+        var out = a
+        if AnkiLimits.limitReached(tier, seen: a.dailySeen) {
+            out.session = nil
+            out.index = 0
+            out.revealed = false
+            out.practice = practice
+            out.phase = .day
+            out.limitHit = true
+            out.counted = 0
+            return out
+        }
+        let session = AnkiLogic.buildSession(days: plan.days(.anki), currentDay: day, completedCount: a.progress.completed_days.count,
+                                             hard: Set(a.hard), custom: WordBankLogic.toCards(a.customWords), tier: tier,
+                                             practice: practice, seen: a.dailySeen)
+        let first = (AnkiLimits.dailyLimit(tier) != nil && (session?.items.isEmpty == false)) ? 1 : 0
+        out.session = session
+        out.index = 0
+        out.revealed = false
+        out.practice = practice
+        out.phase = .day
+        out.limitHit = false
+        out.counted = first
+        out.dailySeen = a.dailySeen + first
+        return out
     }
 
     /// Opens the flashcards. With no `practiceDay` it is today's real session; with one it is a bonus
@@ -761,7 +827,8 @@ final class AppModel: ObservableObject {
                 let reads = try await authed { s in
                     (try await self.api.readAppValue(s, key: "progress"),
                      try await self.api.readAppValue(s, key: "hard-words"),
-                     try await self.api.readAppValue(s, key: "card-stats"))
+                     try await self.api.readAppValue(s, key: "card-stats"),
+                     try await self.api.readAppValue(s, key: "anki-daily"))
                 }
                 var failed = false
                 var progress = SectionProgress()
@@ -785,29 +852,34 @@ final class AppModel: ObservableObject {
                 case .found(let text):
                     if let decoded = AnkiLogic.decodeStats(text) { stats = decoded } else { failed = true }
                 }
+                var seen = 0
+                switch reads.3 {
+                case .empty: break
+                case .failed: failed = true
+                case .found(let text): seen = AnkiLimits.todaysCount(text, today: todayKey())
+                }
                 ankiLoadFailed = failed
+                // Word Bank words (none for free accounts); never blocks Anki if they can't be loaded.
+                let customWords = (try? await authed { try await self.api.wordBankList($0) }) ?? []
                 let practice = practiceDay != nil
                 let finished = !practice && progress.current_day > totalDays
-                let session: AnkiSession?
-                if let day = practiceDay {
-                    session = buildAnkiSession(day: clampDay(day), progress: progress, hard: hard)
-                } else if finished {
-                    session = nil
+                var base = AnkiState()
+                base.loading = false
+                base.progress = progress
+                base.hard = hard
+                base.stats = stats
+                base.loadFailed = failed
+                base.customWords = customWords
+                base.dailySeen = seen
+                let started: AnkiState
+                if finished {
+                    base.phase = .finished
+                    started = base
                 } else {
-                    session = buildAnkiSession(day: progress.current_day, progress: progress, hard: hard)
+                    started = newAnkiSession(base, day: practiceDay.map { clampDay($0) } ?? progress.current_day, practice: practice)
                 }
-                updateAnki {
-                    $0.loading = false
-                    $0.progress = progress
-                    $0.hard = hard
-                    $0.stats = stats
-                    $0.loadFailed = failed
-                    $0.session = session
-                    $0.index = 0
-                    $0.revealed = false
-                    $0.practice = practice
-                    $0.phase = finished ? .finished : .day
-                }
+                anki = started
+                if started.dailySeen != seen { persistDaily(started.dailySeen) }
             } catch {
                 // Couldn't read: never treat that as "nothing saved" (saving stays off).
                 ankiLoadFailed = true
@@ -838,14 +910,21 @@ final class AppModel: ObservableObject {
 
     func ankiNext() {
         guard let a = anki, let session = a.session else { return }
-        if a.index + 1 >= session.items.count {
+        let next = a.index + 1
+        if next >= session.items.count {
             finishAnkiSession()
-        } else {
-            updateAnki {
-                $0.index = a.index + 1
-                $0.revealed = false
-            }
+            return
         }
+        // Only cards not seen before are added to today's total, so going back over a card doesn't count it twice.
+        let counted = AnkiLimits.dailyLimit(tier) != nil ? max(a.counted, next + 1) : a.counted
+        let added = counted - a.counted
+        updateAnki {
+            $0.index = next
+            $0.revealed = false
+            $0.counted = counted
+            $0.dailySeen += added
+        }
+        if added > 0 { persistDaily(a.dailySeen + added) }
     }
 
     func ankiPrevious() {
@@ -898,14 +977,9 @@ final class AppModel: ObservableObject {
     func ankiPracticeAgain(_ day: Int) {
         guard let a = anki else { return }
         stopSpeech()
-        let session = buildAnkiSession(day: day, progress: a.progress, hard: a.hard)
-        updateAnki {
-            $0.session = session
-            $0.index = 0
-            $0.revealed = false
-            $0.practice = true
-            $0.phase = .day
-        }
+        let started = newAnkiSession(a, day: day, practice: true)
+        anki = started
+        if started.dailySeen != a.dailySeen { persistDaily(started.dailySeen) }
     }
 
     func ankiContinueToNextDay() {
@@ -915,13 +989,9 @@ final class AppModel: ObservableObject {
             updateAnki { $0.phase = .finished }
             return
         }
-        let session = buildAnkiSession(day: a.progress.current_day, progress: a.progress, hard: a.hard)
-        updateAnki {
-            $0.session = session
-            $0.index = 0
-            $0.revealed = false
-            $0.phase = .day
-        }
+        let started = newAnkiSession(a, day: a.progress.current_day, practice: false)
+        anki = started
+        if started.dailySeen != a.dailySeen { persistDaily(started.dailySeen) }
     }
 
     func ankiAskReset(_ confirming: Bool) {
@@ -930,20 +1000,17 @@ final class AppModel: ObservableObject {
 
     func ankiDoReset() {
         let fresh = SectionProgress()
+        guard var reset = anki else { return }
         stopSpeech()
-        let session = buildAnkiSession(day: 1, progress: fresh, hard: [])
-        updateAnki {
-            $0.progress = fresh
-            $0.hard = []
-            $0.stats = [:]
-            $0.confirmingReset = false
-            $0.session = session
-            $0.index = 0
-            $0.revealed = false
-            $0.practice = false
-            $0.phase = .day
-            $0.completion = nil
-        }
+        let before = reset.dailySeen
+        reset.progress = fresh
+        reset.hard = []
+        reset.stats = [:]
+        reset.confirmingReset = false
+        reset.completion = nil
+        let started = newAnkiSession(reset, day: 1, practice: false)
+        anki = started
+        if started.dailySeen != before { persistDaily(started.dailySeen) }
         persistAnki("progress", StudyLogic.encode(fresh))
         persistAnki("hard-words", AnkiLogic.encodeHard([]))
         persistAnki("card-stats", AnkiLogic.encodeStats([:]))
@@ -1083,6 +1150,167 @@ final class AppModel: ObservableObject {
         guard var a = admin else { return }
         change(&a)
         admin = a
+    }
+
+    // MARK: Word Bank (Premium and Super)
+
+    private func updateWordBank(_ change: (inout WordBankState) -> Void) {
+        guard var w = wordBank else { return }
+        change(&w)
+        wordBank = w
+    }
+
+    /// Opens the Word Bank. Free accounts see the locked screen; the database refuses them anyway.
+    func openWordBank() {
+        returnTo = nil
+        wordBank = WordBankState()
+        screen = .wordBank
+        if tier.atLeast(.premium) { loadWordBank() }
+    }
+
+    func loadWordBank() {
+        updateWordBank { $0.loadError = false }
+        Task { [self] in
+            do {
+                let words = try await authed { try await self.api.wordBankList($0) }
+                updateWordBank { $0.words = words }
+            } catch {
+                updateWordBank { state in
+                    state.words = state.words ?? []
+                    state.loadError = true
+                }
+            }
+        }
+    }
+
+    func wbQuery(_ q: String) { updateWordBank { $0.query = q; $0.showCount = 100 } }
+    func wbShowMore() { updateWordBank { $0.showCount += 100 } }
+    func wbSetFrench(_ v: String) { updateWordBank { $0.french = String(v.prefix(WordBankLogic.maxFrench)) } }
+    func wbSetEnglish(_ v: String) { updateWordBank { $0.english = String(v.prefix(WordBankLogic.maxEnglish)) } }
+    func wbSetNote(_ v: String) { updateWordBank { $0.note = String(v.prefix(WordBankLogic.maxNote)) } }
+    func wbSetEditFrench(_ v: String) { updateWordBank { $0.editFrench = String(v.prefix(WordBankLogic.maxFrench)) } }
+    func wbSetEditEnglish(_ v: String) { updateWordBank { $0.editEnglish = String(v.prefix(WordBankLogic.maxEnglish)) } }
+    func wbSetEditNote(_ v: String) { updateWordBank { $0.editNote = String(v.prefix(WordBankLogic.maxNote)) } }
+    func wbAskDelete(_ id: String?) { updateWordBank { $0.confirmId = id } }
+    func wbAskReset(_ confirming: Bool) { updateWordBank { $0.confirmReset = confirming } }
+    func wbCancelEdit() { updateWordBank { $0.editingId = nil; $0.editError = nil } }
+
+    func wbStartEdit(_ w: WordBankWord) {
+        updateWordBank {
+            $0.editingId = w.id
+            $0.editFrench = w.french
+            $0.editEnglish = w.english
+            $0.editNote = w.note ?? ""
+            $0.editError = nil
+            $0.confirmId = nil
+        }
+    }
+
+    /// The day the person is on in Anki, stamped on each word they add (1 if it can't be read).
+    private func currentAnkiDay() async -> Int {
+        guard let r = try? await authed({ try await self.api.readAppValue($0, key: "progress") }),
+              case .found(let text) = r, let progress = StudyLogic.decode(text) else { return 1 }
+        return clampDay(progress.current_day)
+    }
+
+    func wbAdd() {
+        guard let w = wordBank, let words = w.words else { return }
+        let visible = words.filter { !$0.hidden }
+        let limit = WordBankLogic.ownLimit(tier)
+        let limitMessage = "You've reached your limit of \(limit) words."
+        var problem = WordBankLogic.validate(french: w.french, english: w.english, note: w.note)
+        if problem == nil && !WordBankLogic.hasRoom(tier, visible) { problem = limitMessage }
+        if problem == nil && WordBankLogic.isDuplicate(visible, french: w.french, english: w.english) { problem = "That word is already in your list." }
+        if let problem {
+            updateWordBank { $0.addError = problem; $0.notice = nil }
+            return
+        }
+        updateWordBank { $0.busy = true; $0.addError = nil; $0.notice = nil }
+        Task { [self] in
+            do {
+                let clean = WordBankLogic.clean(french: w.french, english: w.english, note: w.note)
+                let day = await currentAnkiDay()
+                let saved = try await authed { try await self.api.wordBankAdd($0, french: clean.french, english: clean.english, note: clean.note, addedDay: day) }
+                updateWordBank { state in
+                    state.words = (state.words ?? []) + [saved]
+                    state.french = ""
+                    state.english = ""
+                    state.note = ""
+                    state.busy = false
+                    state.notice = "Added. It will appear in your Anki reviews from your next session."
+                }
+            } catch {
+                let isLimit = (error as? APIError)?.message == "word_bank_limit"
+                updateWordBank {
+                    $0.busy = false
+                    $0.addError = isLimit ? limitMessage : "Couldn't save that word. Try again."
+                }
+            }
+        }
+    }
+
+    func wbSaveEdit(_ word: WordBankWord) {
+        guard let w = wordBank, let words = w.words else { return }
+        let visible = words.filter { !$0.hidden }
+        var problem = WordBankLogic.validate(french: w.editFrench, english: w.editEnglish, note: w.editNote)
+        if problem == nil && WordBankLogic.isDuplicate(visible, french: w.editFrench, english: w.editEnglish, ignoring: word.id) {
+            problem = "That word is already in your list."
+        }
+        if let problem {
+            updateWordBank { $0.editError = problem }
+            return
+        }
+        updateWordBank { $0.busy = true }
+        Task { [self] in
+            do {
+                let clean = WordBankLogic.clean(french: w.editFrench, english: w.editEnglish, note: w.editNote)
+                let saved = try await authed { try await self.api.wordBankUpdate($0, id: word.id, french: clean.french, english: clean.english, note: clean.note) }
+                updateWordBank { state in
+                    state.words = state.words?.map { $0.id == word.id ? saved : $0 }
+                    state.editingId = nil
+                    state.busy = false
+                }
+            } catch {
+                updateWordBank { $0.busy = false; $0.editError = "Couldn't save the change. Try again." }
+            }
+        }
+    }
+
+    func wbRemove(_ word: WordBankWord) {
+        updateWordBank { $0.busy = true; $0.notice = nil }
+        Task { [self] in
+            do {
+                try await authed { try await self.api.wordBankRemove($0, word: word) }
+                updateWordBank { state in
+                    if WordBankLogic.isOwn(word) {
+                        state.words = state.words?.filter { $0.id != word.id }
+                    } else {
+                        state.words = state.words?.map { row in
+                            var x = row
+                            if x.id == word.id { x.hidden = true }
+                            return x
+                        }
+                    }
+                    state.confirmId = nil
+                    state.busy = false
+                }
+            } catch {
+                updateWordBank { $0.busy = false; $0.notice = "Couldn't remove that word. Try again." }
+            }
+        }
+    }
+
+    func wbReset() {
+        updateWordBank { $0.busy = true; $0.notice = nil }
+        Task { [self] in
+            do {
+                try await authed { try await self.api.wordBankResetStarter($0) }
+                let words = try await authed { try await self.api.wordBankList($0) }
+                updateWordBank { $0.words = words; $0.confirmReset = false; $0.busy = false; $0.notice = "Starter words restored." }
+            } catch {
+                updateWordBank { $0.busy = false; $0.notice = "Couldn't restore the starter words. Try again." }
+            }
+        }
     }
 
     /// Opens the admin page. Only super users get here; the database refuses everyone else anyway.

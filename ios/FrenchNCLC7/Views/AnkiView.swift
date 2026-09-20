@@ -79,7 +79,23 @@ struct AnkiView: View {
 
     @ViewBuilder
     private func content(_ c: AppColors) -> some View {
-        if a.phase == .finished {
+        if a.limitHit {
+            VStack(spacing: 8) {
+                Text("🔒").font(.system(size: 36))
+                Text("Today's limit reached").font(.system(size: 24, design: .serif)).foregroundColor(c.text)
+                Text("You've seen \(AnkiLimits.dailyLimit(model.tier) ?? 0) words today. Your limit resets tomorrow"
+                     + (model.tier == .free ? ", and Premium raises it to \(AnkiLimits.premiumDaily) words a day." : "."))
+                    .font(.system(size: 14)).foregroundColor(c.muted).multilineTextAlignment(.center)
+                Button { model.goHome() } label: {
+                    Text("Back to home").font(.system(size: 14, weight: .medium))
+                        .frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .foregroundColor(c.muted)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(c.border))
+                }
+                .padding(.top, 16)
+            }
+            .frame(maxWidth: .infinity).padding(.horizontal, 24).padding(.vertical, 48)
+        } else if a.phase == .finished {
             VStack(spacing: 6) {
                 Text("✓").font(.system(size: 40)).foregroundColor(c.success)
                 Text("All \(totalDays) days done").font(.system(size: 24)).foregroundColor(c.text)
@@ -163,13 +179,17 @@ private struct AnkiCardView: View {
         let isReview = item.sourceDay != sessionDay
 
         VStack(spacing: 0) {
+            if let limit = AnkiLimits.dailyLimit(model.tier) {
+                Text("Words today: \(min(a.dailySeen, limit)) of \(limit)")
+                    .font(.system(size: 12)).foregroundColor(c.muted).padding(.bottom, 4)
+            }
             HStack {
                 Text(item.dir == .ef ? "English → French" : "French → English")
                     .font(.system(size: 11)).foregroundColor(c.link)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(c.accentSoft).clipShape(Capsule())
                 Spacer()
-                Text("\(a.index + 1) / \(total)" + (isReview ? " · review" : " · new"))
+                Text("\(a.index + 1) / \(total)" + (item.custom ? " · my word" : isReview ? " · review" : " · new"))
                     .font(.system(size: 12)).foregroundColor(c.muted)
             }
             .padding(.horizontal, 4).padding(.bottom, 8)

@@ -34,6 +34,10 @@ struct RootView: View {
                 if let admin = model.admin {
                     AdminView(a: admin)
                 }
+            case .wordBank:
+                if let wordBank = model.wordBank {
+                    WordBankView(w: wordBank)
+                }
             case .anki:
                 if let anki = model.anki {
                     AnkiView(a: anki)

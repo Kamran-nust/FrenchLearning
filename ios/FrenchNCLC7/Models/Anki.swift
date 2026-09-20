@@ -15,6 +15,8 @@ struct AnkiItem: Equatable {
     let sourceDay: Int
     /// Unique within the session.
     let key: String
+    /// A word from the person's Word Bank rather than the plan.
+    var custom: Bool = false
 }
 
 /// Today's queue: the day's new words first, then review words from earlier days.
@@ -84,30 +86,51 @@ enum AnkiLogic {
     }
 
     /// Builds the queue for `currentDay`; nil if that day doesn't exist.
+    ///  - `custom`: the person's Word Bank words; they join the review pool and are never "new".
+    ///  - `tier`: Super gets a bigger day (25 rising to 50 cards) and Free/Premium sessions are held to their
+    ///    daily limit. Leave it nil and the session is sized as it always was.
+    ///  - `practice` and `seen`: extra practice may only use what is left of today's allowance.
     static func buildSession<G: RandomNumberGenerator>(days: [DayContent], currentDay: Int, completedCount: Int,
-                                                       hard: Set<String>, using generator: inout G) -> AnkiSession? {
+                                                       hard: Set<String>, custom: [Pooled] = [], tier: Tier? = nil,
+                                                       practice: Bool = false, seen: Int = 0,
+                                                       using generator: inout G) -> AnkiSession? {
         guard let today = days.first(where: { $0.day == currentDay }) else { return nil }
-        let newItems = today.cards.map {
+        var newCards = today.cards
+        var target = reviewTarget(completedCount)
+        if let tier {
+            if tier == .superUser { target = max(0, AnkiLimits.superDayTotal(completedCount) - newCards.count) }
+            if let cap = AnkiLimits.sessionCap(tier, practice: practice, seen: seen) {
+                newCards = Array(newCards.prefix(cap))
+                target = min(target, max(0, cap - newCards.count))
+            }
+        }
+        let newItems = newCards.map {
             AnkiItem(cardId: $0.i, french: $0.f, english: $0.e, dir: .fe, sourceDay: today.day, key: "\($0.i)-new-\(today.day)")
         }
         var pool: [Pooled] = []
         for d in days where d.day < today.day {
             for card in d.cards { pool.append((card, d.day)) }
         }
-        let reviewCount = min(reviewTarget(completedCount), pool.count)
-        let picked = weightedSample(pool, hard: hard, count: reviewCount, using: &generator)
+        let slots = WordBankLogic.splitReviewSlots(target: target, builtin: pool.count, custom: custom.count)
+        var picked = weightedSample(pool, hard: hard, count: slots.builtin, using: &generator)
+            + weightedSample(custom, hard: hard, count: slots.custom, using: &generator)
+        // Without Word Bank words the order is exactly as before; with them, mix the two kinds together.
+        if slots.custom > 0 { picked.shuffle(using: &generator) }
         var reviewItems: [AnkiItem] = []
         for (card, sourceDay) in picked {
             let dir: Direction = Double.random(in: 0..<1, using: &generator) < 0.5 ? .ef : .fe
             reviewItems.append(AnkiItem(cardId: card.i, french: card.f, english: card.e, dir: dir,
-                                        sourceDay: sourceDay, key: "\(card.i)-rev-\(sourceDay)-\(today.day)"))
+                                        sourceDay: sourceDay, key: "\(card.i)-rev-\(sourceDay)-\(today.day)",
+                                        custom: WordBankLogic.isWordBankCard(card.i)))
         }
-        return AnkiSession(dayNumber: today.day, items: newItems + reviewItems, reviewCount: reviewCount)
+        return AnkiSession(dayNumber: today.day, items: newItems + reviewItems, reviewCount: reviewItems.count)
     }
 
-    static func buildSession(days: [DayContent], currentDay: Int, completedCount: Int, hard: Set<String>) -> AnkiSession? {
+    static func buildSession(days: [DayContent], currentDay: Int, completedCount: Int, hard: Set<String>,
+                             custom: [Pooled] = [], tier: Tier? = nil, practice: Bool = false, seen: Int = 0) -> AnkiSession? {
         var generator = SystemRandomNumberGenerator()
-        return buildSession(days: days, currentDay: currentDay, completedCount: completedCount, hard: hard, using: &generator)
+        return buildSession(days: days, currentDay: currentDay, completedCount: completedCount, hard: hard, custom: custom,
+                            tier: tier, practice: practice, seen: seen, using: &generator)
     }
 
     /// After a real (not practice) day: every card in the queue has been seen once more.

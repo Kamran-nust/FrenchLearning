@@ -233,6 +233,72 @@ struct SupabaseAPI {
         }
     }
 
+    // MARK: Word Bank
+
+    /// The person's words. The database first copies in any starter words they don't have yet; free accounts get none.
+    func wordBankList(_ session: Session) async throws -> [WordBankWord] {
+        let reply = try await call("POST", "/rest/v1/rpc/word_bank_list", token: session.accessToken, body: [:])
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else {
+            throw APIError(message(reply.data, fallback: "Couldn't load your words."), status: reply.status)
+        }
+        guard let words = WordBankLogic.parseList(reply.data) else { throw APIError("Couldn't read your words.") }
+        return words
+    }
+
+    private func wordBankWord(_ reply: (status: Int, data: Data), fallback: String) throws -> WordBankWord {
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else {
+            if String(data: reply.data, encoding: .utf8)?.contains("word_bank_limit") == true {
+                throw APIError("word_bank_limit", status: reply.status)
+            }
+            throw APIError(message(reply.data, fallback: fallback), status: reply.status)
+        }
+        guard let word = WordBankLogic.parseList(reply.data)?.first else { throw APIError(fallback) }
+        return word
+    }
+
+    func wordBankAdd(_ session: Session, french: String, english: String, note: String?, addedDay: Int) async throws -> WordBankWord {
+        let reply = try await call(
+            "POST", "/rest/v1/word_bank_words", token: session.accessToken,
+            body: ["french": french, "english": english, "note": note.map { $0 as Any } ?? NSNull(), "added_day": addedDay],
+            headers: ["Prefer": "return=representation"]
+        )
+        return try wordBankWord(reply, fallback: "Couldn't save that word.")
+    }
+
+    func wordBankUpdate(_ session: Session, id: String, french: String, english: String, note: String?) async throws -> WordBankWord {
+        let reply = try await call(
+            "PATCH", "/rest/v1/word_bank_words?id=eq.\(id)", token: session.accessToken,
+            body: ["french": french, "english": english, "note": note.map { $0 as Any } ?? NSNull()],
+            headers: ["Prefer": "return=representation"]
+        )
+        return try wordBankWord(reply, fallback: "Couldn't save the change.")
+    }
+
+    /// Their own words are deleted; a starter word is only hidden, so it stays gone and can be brought back.
+    func wordBankRemove(_ session: Session, word: WordBankWord) async throws {
+        let reply: (status: Int, data: Data)
+        if word.starter_id != nil {
+            reply = try await call("PATCH", "/rest/v1/word_bank_words?id=eq.\(word.id)", token: session.accessToken, body: ["hidden": true])
+        } else {
+            reply = try await call("DELETE", "/rest/v1/word_bank_words?id=eq.\(word.id)", token: session.accessToken)
+        }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else {
+            throw APIError(message(reply.data, fallback: "Couldn't remove that word."), status: reply.status)
+        }
+    }
+
+    /// Brings back hidden starter words and undoes edits to them.
+    func wordBankResetStarter(_ session: Session) async throws {
+        let reply = try await call("POST", "/rest/v1/rpc/word_bank_reset_starter", token: session.accessToken, body: [:])
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        guard (200...299).contains(reply.status) else {
+            throw APIError(message(reply.data, fallback: "Couldn't restore the starter words."), status: reply.status)
+        }
+    }
+
     /// Where the person stands with today's AI feedback allowance; nil if it can't be read.
     func feedbackQuota(_ session: Session) async throws -> FeedbackQuota? {
         guard let reply = try? await call("POST", "/rest/v1/rpc/feedback_quota", token: session.accessToken, body: [:]) else { return nil }
