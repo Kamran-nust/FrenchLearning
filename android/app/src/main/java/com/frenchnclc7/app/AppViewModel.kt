@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.frenchnclc7.app.data.AdminLogic
 import com.frenchnclc7.app.data.AdminUser
+import com.frenchnclc7.app.data.AccountLogic
 import com.frenchnclc7.app.data.AnkiLimits
 import com.frenchnclc7.app.data.AnkiLogic
 import com.frenchnclc7.app.data.WordBankCard
@@ -76,6 +77,8 @@ sealed interface Screen {
     data object Plans : Screen
     /** The personal word list (Premium and Super). */
     data object WordBank : Screen
+    /** Delete my account (not offered to Super accounts). */
+    data object DeleteAccount : Screen
 }
 
 enum class StudyPhase { DAY, COMPLETE, FINISHED }
@@ -158,6 +161,15 @@ data class AnkiState(
     val limitHit: Boolean = false,
 )
 
+/** The delete-account screen: the typed confirmation, the password and where the request is up to. */
+data class DeleteAccountState(
+    val typed: String = "",
+    val password: String = "",
+    val busy: Boolean = false,
+    val error: String? = null,
+    val done: Boolean = false,
+)
+
 /** The Word Bank screen: the list, the add form, editing and the small confirmations. */
 data class WordBankState(
     /** null while loading. */
@@ -227,6 +239,7 @@ data class UiState(
     val admin: AdminState? = null,
     val plans: PlansState = PlansState(),
     val wordBank: WordBankState? = null,
+    val deleteAccount: DeleteAccountState? = null,
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -348,6 +361,49 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         _state.update { it.copy(authBusy = false, authError = e.message) }
                     }
                 }
+            }
+        }
+    }
+
+    /** "Forgot password?": emails a reset link. What comes back says nothing about whether the account exists. */
+    fun sendPasswordReset(email: String) {
+        if (!AccountLogic.isEmail(email)) {
+            _state.update { it.copy(authError = "Enter a valid email address.", authNotice = null) }
+            return
+        }
+        _state.update { it.copy(authBusy = true, authError = null, authNotice = null) }
+        viewModelScope.launch {
+            try {
+                api.recoverPassword(email.trim())
+                _state.update { it.copy(authBusy = false, authNotice = AccountLogic.resetSentMessage(email)) }
+            } catch (e: ApiException) {
+                _state.update { it.copy(authBusy = false, authError = e.message) }
+            }
+        }
+    }
+
+    // ---- Delete account ----
+
+    /** Opens the delete-account screen. Super accounts don't get it (the server refuses them too). */
+    fun openDeleteAccount() {
+        if (!AccountLogic.canDelete(_state.value.tier)) return
+        returnTo = null
+        _state.update { it.copy(screen = Screen.DeleteAccount, deleteAccount = DeleteAccountState()) }
+    }
+
+    fun deleteAccountTyped(v: String) = _state.update { s -> s.copy(deleteAccount = s.deleteAccount?.copy(typed = v, error = null)) }
+    fun deleteAccountPassword(v: String) = _state.update { s -> s.copy(deleteAccount = s.deleteAccount?.copy(password = v, error = null)) }
+
+    fun deleteAccountConfirm() {
+        val d = _state.value.deleteAccount ?: return
+        if (d.busy || !AccountLogic.canConfirmDelete(d.typed, d.password)) return
+        _state.update { s -> s.copy(deleteAccount = d.copy(busy = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                authed { api.deleteAccount(it, d.password) }
+                _state.update { s -> s.copy(deleteAccount = DeleteAccountState(done = true)) }
+            } catch (e: ApiException) {
+                _state.update { s -> s.copy(deleteAccount = d.copy(busy = false, error = e.message ?: AccountLogic.DELETE_FAILED)) }
             }
         }
     }

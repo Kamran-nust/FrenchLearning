@@ -23,6 +23,8 @@ export default function AuthGate({ children }) {
   const [recovering, setRecovering] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordSaved, setNewPasswordSaved] = useState(false);
+  const [forgot, setForgot] = useState(false); // the "Forgot password?" screen
+  const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -99,6 +101,18 @@ export default function AuthGate({ children }) {
     }
   }
 
+  // Sends the password-reset email. The link in it brings the person back here to choose a new password.
+  async function sendReset(e) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setSubmitting(true);
+    setError("");
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+    setSubmitting(false);
+    if (error) setError(error.message);
+    else setResetSent(true);
+  }
+
   async function submitNewPassword(e) {
     e.preventDefault();
     if (!newPassword) return;
@@ -153,6 +167,52 @@ export default function AuthGate({ children }) {
               {error && <div style={{ color: COLORS.danger, fontSize: 12, marginTop: 10 }}>{error}</div>}
             </form>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!session && forgot) {
+    return (
+      <div style={wrap}>
+        <div style={card}>
+          <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 6, color: COLORS.text }}>Reset your password</div>
+          {resetSent ? (
+            <div style={{ fontSize: 13, color: COLORS.text }}>
+              If an account exists for <strong>{email}</strong>, we've sent a link to it. Open the link to choose a new
+              password.
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 20 }}>
+                Enter the email you signed up with and we'll send you a link.
+              </div>
+              <form onSubmit={sendReset}>
+                <input
+                  type="email"
+                  required
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={input}
+                />
+                <button type="submit" disabled={submitting} style={button}>
+                  {submitting ? "Please wait…" : "Send reset link"}
+                </button>
+                {error && <div style={{ color: COLORS.danger, fontSize: 12, marginTop: 10 }}>{error}</div>}
+              </form>
+            </>
+          )}
+          <button
+            onClick={() => {
+              setForgot(false);
+              setResetSent(false);
+              setError("");
+            }}
+            style={linkButton}
+          >
+            Back to sign in
+          </button>
         </div>
       </div>
     );
@@ -251,6 +311,17 @@ export default function AuthGate({ children }) {
             </button>
             {error && <div style={{ color: COLORS.danger, fontSize: 12, marginTop: 10 }}>{error}</div>}
           </form>
+        )}
+        {!confirmSent && mode === "signin" && (
+          <button
+            onClick={() => {
+              setForgot(true);
+              setError("");
+            }}
+            style={linkButton}
+          >
+            Forgot password?
+          </button>
         )}
         {!confirmSent && (
           <button

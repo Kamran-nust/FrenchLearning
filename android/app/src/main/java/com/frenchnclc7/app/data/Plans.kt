@@ -39,6 +39,7 @@ object PlansLogic {
         PlanGroup("Study", listOf(
             PlanRow("Anki, Grammar, Kwiziq, TV5MONDE, Writing", PlanCell.Included, PlanCell.Included),
             PlanRow("Progress and streaks", PlanCell.Included, PlanCell.Included),
+            PlanRow("Word Bank (your own words in Anki)", PlanCell.NotIncluded, PlanCell.Text("Up to ${WordBankLogic.PREMIUM_OWN_LIMIT} of your own")),
         )),
         PlanGroup("Lessons and links", listOf(
             PlanRow("Direct Kwiziq and TV5MONDE lesson links", PlanCell.Text("Search only"), PlanCell.Included),

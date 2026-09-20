@@ -11,6 +11,7 @@ import DayJumpScreen from "./screens/DayJumpScreen.jsx";
 import AdminScreen from "./screens/AdminScreen.jsx";
 import PlansScreen from "./screens/PlansScreen.jsx";
 import WordBankModule from "./modules/WordBankModule.jsx";
+import DeleteAccountScreen from "./screens/DeleteAccountScreen.jsx";
 import { OPEN_PLANS_EVENT } from "./shared/plans";
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
         onOpenAdmin={() => setScreen("admin")}
         onOpenPlans={() => setScreen("plans")}
         onOpenWordBank={() => setScreen("wordbank")}
+        onOpenDeleteAccount={() => setScreen("deleteaccount")}
       />
     );
   }
@@ -78,6 +80,9 @@ export default function App() {
         onSelectSection={(id, day) => openSection(id, "day-jump", day)}
       />
     );
+  }
+  if (screen === "deleteaccount") {
+    return <DeleteAccountScreen onBack={() => setScreen("home")} />;
   }
   if (screen === "wordbank") {
     return <WordBankModule onBack={() => setScreen("home")} onOpenPlans={() => setScreen("plans")} />;

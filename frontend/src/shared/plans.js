@@ -26,6 +26,7 @@ export const FEATURE_GROUPS = [
     rows: [
       { label: "Anki, Grammar, Kwiziq, TV5MONDE, Writing", free: true, premium: true },
       { label: "Progress and streaks", free: true, premium: true },
+      { label: "Word Bank (your own words in Anki)", free: false, premium: "Up to 500 of your own" },
     ],
   },
   {

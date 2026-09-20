@@ -107,8 +107,9 @@ export default function HomeScreen({
   onOpenAdmin,
   onOpenPlans,
   onOpenWordBank,
+  onOpenDeleteAccount,
 }) {
-  const { loading: tierLoading, can } = useTier();
+  const { loading: tierLoading, can, tier } = useTier();
   const [completedThrough, setCompletedThrough] = useState(null); // null = loading or unavailable
 
   useEffect(() => {
@@ -328,6 +329,13 @@ export default function HomeScreen({
         <div className="text-center text-xs mt-8" style={{ color: COLORS.muted }}>
           ~90 minutes a day · Listening · Speaking · Reading · Writing
         </div>
+        {onOpenDeleteAccount && !tierLoading && tier !== "super" && (
+          <div className="text-center mt-3">
+            <button onClick={onOpenDeleteAccount} className="text-xs underline" style={{ color: COLORS.muted }}>
+              Delete my account
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

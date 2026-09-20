@@ -44,12 +44,43 @@ fun AuthScreen(state: UiState, vm: AppViewModel) {
     var email by rememberSaveable { mutableStateOf("") }
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+    var forgot by rememberSaveable { mutableStateOf(false) }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = c.text, unfocusedTextColor = c.text,
         focusedBorderColor = c.accent, unfocusedBorderColor = c.border,
         focusedLabelColor = c.accent, unfocusedLabelColor = c.muted, cursorColor = c.accent,
     )
+
+    if (forgot) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 24.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Reset your password", color = c.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            Text("Enter the email you signed up with and we'll send you a link.", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(20.dp))
+            OutlinedTextField(
+                value = email, onValueChange = { email = it }, singleLine = true, colors = fieldColors, label = { Text("Email") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(14.dp))
+            state.authError?.let { Text(it, color = c.danger, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 10.dp)) }
+            state.authNotice?.let { Text(it, color = c.success, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 10.dp)) }
+            Button(
+                onClick = { vm.sendPasswordReset(email) }, enabled = !state.authBusy, shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.onAccent),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+            ) { Text(if (state.authBusy) "Please wait…" else "Send reset link", fontWeight = FontWeight.Medium) }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Back to sign in", color = c.link, fontSize = 13.sp,
+                modifier = Modifier.clickable { forgot = false; vm.clearAuthMessages() }.padding(8.dp),
+            )
+        }
+        return
+    }
 
     Column(
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 24.dp, vertical = 40.dp),
@@ -107,6 +138,13 @@ fun AuthScreen(state: UiState, vm: AppViewModel) {
             modifier = Modifier.fillMaxWidth().height(48.dp),
         ) {
             Text(if (state.authBusy) "Please wait…" else if (creating) "Create account" else "Sign in", fontWeight = FontWeight.Medium)
+        }
+        if (!creating) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Forgot password?", color = c.link, fontSize = 13.sp,
+                modifier = Modifier.clickable { forgot = true; vm.clearAuthMessages() }.padding(8.dp),
+            )
         }
         Spacer(Modifier.height(14.dp))
         Text(

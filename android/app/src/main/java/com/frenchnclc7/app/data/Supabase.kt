@@ -159,6 +159,27 @@ class SupabaseApi(private val client: OkHttpClient = OkHttpClient()) {
         if (reply.status !in 200..299) throw ApiException(message(reply, "Couldn't create the account."), reply.status)
     }
 
+    /** Emails a password-reset link. The link opens the web app, where the new password is chosen. */
+    suspend fun recoverPassword(email: String) {
+        val reply = call("POST", "/auth/v1/recover", null, buildJsonObject { put("email", email) })
+        if (reply.status !in 200..299) {
+            throw ApiException(message(reply, "Couldn't send the reset link. Try again in a moment."), reply.status)
+        }
+    }
+
+    /** Deletes the signed-in person's own account (and everything saved with it). The server re-checks the password. */
+    suspend fun deleteAccount(session: Session, password: String) {
+        val reply = call("POST", "/functions/v1/delete-account", session.accessToken, buildJsonObject { put("password", password) })
+        if (reply.status in 200..299) return
+        val code = (parse(reply.body) as? JsonObject)?.get("code")?.jsonPrimitive?.contentOrNull
+        throw when {
+            code == "wrong_password" -> ApiException(AccountLogic.WRONG_PASSWORD, reply.status)
+            code == "super_not_allowed" -> ApiException(AccountLogic.SUPER_NOT_ALLOWED, reply.status)
+            reply.status == 401 -> ApiException("Session expired.", 401)
+            else -> ApiException(AccountLogic.DELETE_FAILED, reply.status)
+        }
+    }
+
     suspend fun usernameAvailable(name: String): Boolean {
         val reply = call("POST", "/rest/v1/rpc/username_available", null, buildJsonObject { put("name", name) })
         return reply.status in 200..299 && reply.body.trim() == "true"

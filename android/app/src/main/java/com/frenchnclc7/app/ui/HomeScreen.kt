@@ -184,6 +184,12 @@ fun HomeScreen(state: UiState, vm: AppViewModel) {
             }
             Spacer(Modifier.height(24.dp))
             Text("~90 minutes a day · Listening · Speaking · Reading · Writing", color = c.muted, fontSize = 11.sp, textAlign = TextAlign.Center)
+            if (state.tier != Tier.SUPER) {
+                Text(
+                    "Delete my account", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.clickable { vm.openDeleteAccount() }.padding(12.dp),
+                )
+            }
         }
     }
 }
