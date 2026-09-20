@@ -8,10 +8,47 @@ struct AuthView: View {
     @State private var email = ""
     @State private var username = ""
     @State private var password = ""
+    @State private var forgot = false
 
     var body: some View {
+        if forgot { forgotView } else { signInView }
+    }
+
+    /// "Forgot password?": asks for the email and sends a reset link.
+    private var forgotView: some View {
         let c = model.colors
-        ScrollView {
+        return ScrollView {
+            VStack(spacing: 12) {
+                Text("Reset your password").font(.system(size: 22, weight: .semibold)).foregroundColor(c.text)
+                Text("Enter the email you signed up with and we'll send you a link.")
+                    .font(.system(size: 13)).foregroundColor(c.muted).multilineTextAlignment(.center).padding(.bottom, 8)
+                field("Email", text: $email, keyboard: .emailAddress)
+                if let error = model.authError {
+                    Text(error).font(.system(size: 13)).foregroundColor(c.danger).multilineTextAlignment(.center)
+                }
+                if let notice = model.authNotice {
+                    Text(notice).font(.system(size: 13)).foregroundColor(c.success).multilineTextAlignment(.center)
+                }
+                Button { model.sendPasswordReset(email: email) } label: {
+                    Text(model.authBusy ? "Please wait…" : "Send reset link").fontWeight(.medium)
+                        .frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .background(c.accent).foregroundColor(c.onAccent)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .disabled(model.authBusy)
+                Button("Back to sign in") {
+                    forgot = false
+                    model.clearAuthMessages()
+                }
+                .font(.system(size: 13)).foregroundColor(c.link)
+            }
+            .padding(.horizontal, 24).padding(.vertical, 40)
+        }
+    }
+
+    private var signInView: some View {
+        let c = model.colors
+        return ScrollView {
             VStack(spacing: 12) {
                 Text("A DAILY LANGUAGE JOURNEY")
                     .font(.system(size: 11, weight: .semibold)).tracking(1).foregroundColor(c.gold)
@@ -62,6 +99,14 @@ struct AuthView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .disabled(model.authBusy)
+
+                if !creating {
+                    Button("Forgot password?") {
+                        forgot = true
+                        model.clearAuthMessages()
+                    }
+                    .font(.system(size: 13)).foregroundColor(c.link)
+                }
 
                 Button(creating ? "Already have an account? Sign in" : "New here? Create an account") {
                     creating.toggle()

@@ -233,6 +233,27 @@ struct SupabaseAPI {
         }
     }
 
+    // MARK: Password reset and account deletion
+
+    /// Emails a password-reset link. The link opens the web app, where the new password is chosen.
+    func recoverPassword(email: String) async throws {
+        let reply = try await call("POST", "/auth/v1/recover", token: nil, body: ["email": email])
+        guard (200...299).contains(reply.status) else {
+            throw APIError(message(reply.data, fallback: "Couldn't send the reset link. Try again in a moment."), status: reply.status)
+        }
+    }
+
+    /// Deletes the signed-in person's own account (and everything saved with it). The server re-checks the password.
+    func deleteAccount(_ session: Session, password: String) async throws {
+        let reply = try await call("POST", "/functions/v1/delete-account", token: session.accessToken, body: ["password": password])
+        if (200...299).contains(reply.status) { return }
+        let code = object(reply.data)["code"] as? String
+        if code == "wrong_password" { throw APIError(AccountLogic.wrongPassword, status: reply.status) }
+        if code == "super_not_allowed" { throw APIError(AccountLogic.superNotAllowed, status: reply.status) }
+        if reply.status == 401 { throw APIError("Session expired.", status: 401) }
+        throw APIError(AccountLogic.deleteFailed, status: reply.status)
+    }
+
     // MARK: Word Bank
 
     /// The person's words. The database first copies in any starter words they don't have yet; free accounts get none.

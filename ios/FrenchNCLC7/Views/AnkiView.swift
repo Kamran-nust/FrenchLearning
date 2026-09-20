@@ -86,6 +86,15 @@ struct AnkiView: View {
                 Text("You've seen \(AnkiLimits.dailyLimit(model.tier) ?? 0) words today. Your limit resets tomorrow"
                      + (model.tier == .free ? ", and Premium raises it to \(AnkiLimits.premiumDaily) words a day." : "."))
                     .font(.system(size: 14)).foregroundColor(c.muted).multilineTextAlignment(.center)
+                if model.tier == .free {
+                    Button { model.openPlans() } label: {
+                        Text("See plans").font(.system(size: 14, weight: .medium))
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .background(c.accent).foregroundColor(c.onAccent)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .padding(.top, 16)
+                }
                 Button { model.goHome() } label: {
                     Text("Back to home").font(.system(size: 14, weight: .medium))
                         .frame(maxWidth: .infinity).padding(.vertical, 14)

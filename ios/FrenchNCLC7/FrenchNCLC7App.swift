@@ -38,6 +38,12 @@ struct RootView: View {
                 if let wordBank = model.wordBank {
                     WordBankView(w: wordBank)
                 }
+            case .plans:
+                PlansView(p: model.plans)
+            case .deleteAccount:
+                if let d = model.deleteAccount {
+                    DeleteAccountView(d: d)
+                }
             case .anki:
                 if let anki = model.anki {
                     AnkiView(a: anki)

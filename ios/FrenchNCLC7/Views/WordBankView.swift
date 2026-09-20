@@ -27,6 +27,13 @@ struct WordBankView: View {
                     Text("Word Bank is a Premium feature").font(.system(size: 14, weight: .medium)).foregroundColor(c.text)
                     Text("Keep your own list of French words. They join your Anki reviews from your next session.")
                         .font(.system(size: 12)).foregroundColor(c.muted).multilineTextAlignment(.center)
+                    Button { model.openPlans() } label: {
+                        Text("See plans").font(.system(size: 14, weight: .medium))
+                            .padding(.horizontal, 24).padding(.vertical, 12)
+                            .background(c.accent).foregroundColor(c.onAccent)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .padding(.top, 10)
                 }
                 .frame(maxWidth: .infinity).padding(20)
                 .background(c.card)

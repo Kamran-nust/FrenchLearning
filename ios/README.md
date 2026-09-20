@@ -9,7 +9,9 @@ Store needs a paid Apple Developer account.
 
 ## Status: foundation (phase 1)
 
-Word Bank and Anki daily limits (written, not yet compiled): "Word Bank" on Home is a personal word list for Premium (45 starter words, up to 500 of their own) and Super (148 starter words); its words join the Anki reviews from the next session. Anki shows "Words today: N of LIMIT" (Free 30, Premium 200, Super none), stops new sessions once the day's limit is used, and Super's day is 25 cards rising to 50. There is no Plans screen on iPhone yet, so the locked screens have no "See plans" button.
+Word Bank and Anki daily limits (written, not yet compiled): "Word Bank" on Home is a personal word list for Premium (45 starter words, up to 500 of their own) and Super (148 starter words); its words join the Anki reviews from the next session. Anki shows "Words today: N of LIMIT" (Free 30, Premium 200, Super none), stops new sessions once the day's limit is used, and Super's day is 25 cards rising to 50.
+
+Plans screen (Free vs Premium, monthly/yearly; In-App Purchase is a placeholder), Forgot password and Delete my account (not for Super): all written, not yet compiled.
 
 Jump to a day: Back from a section opened via a day page returns to that day page (written, not yet compiled).
 

@@ -18,6 +18,10 @@ enum Screen: Equatable {
     case admin
     /// The personal word list (Premium and Super).
     case wordBank
+    /// Free versus Premium, with monthly/yearly.
+    case plans
+    /// Delete my account (not offered to Super accounts).
+    case deleteAccount
 }
 
 enum StudyPhase: Equatable {
@@ -113,6 +117,22 @@ struct AnkiState: Equatable {
     var limitHit = false
 }
 
+/// The Plans screen: which billing period is showing and where a purchase attempt is up to.
+struct PlansState: Equatable {
+    var period: BillingPeriod = .yearly
+    var busy = false
+    var message: String?
+}
+
+/// The delete-account screen: the typed confirmation, the password and where the request is up to.
+struct DeleteAccountState: Equatable {
+    var typed = ""
+    var password = ""
+    var busy = false
+    var error: String?
+    var done = false
+}
+
 /// The Word Bank screen: the list, the add form, editing and the small confirmations.
 struct WordBankState: Equatable {
     /// nil while loading.
@@ -180,6 +200,10 @@ final class AppModel: ObservableObject {
     @Published var dayPlan = DayPlanState()
     @Published var admin: AdminState?
     @Published var wordBank: WordBankState?
+    @Published var plans = PlansState()
+    @Published var deleteAccount: DeleteAccountState?
+    /// Apple's In-App Purchase sits behind this; `NotConfiguredBilling` until the App Store Connect products exist.
+    private let billing: AppStoreBilling = NotConfiguredBilling()
 
     let plan = PlanRepository()
     private let api = SupabaseAPI()
@@ -324,6 +348,28 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// "Forgot password?": emails a reset link. What comes back says nothing about whether the account exists.
+    func sendPasswordReset(email: String) {
+        guard AccountLogic.isEmail(email) else {
+            authError = "Enter a valid email address."
+            authNotice = nil
+            return
+        }
+        authBusy = true
+        authError = nil
+        authNotice = nil
+        Task { [self] in
+            do {
+                try await api.recoverPassword(email: email.trimmingCharacters(in: .whitespaces))
+                authBusy = false
+                authNotice = AccountLogic.resetSentMessage(email)
+            } catch {
+                authBusy = false
+                authError = (error as? APIError)?.message ?? "Couldn't send the reset link. Try again in a moment."
+            }
+        }
+    }
+
     func clearAuthMessages() {
         authError = nil
         authNotice = nil
@@ -340,6 +386,8 @@ final class AppModel: ObservableObject {
         writing = nil
         anki = nil
         admin = nil
+        wordBank = nil
+        deleteAccount = nil
         authError = nil
         authNotice = nil
         screen = .auth
@@ -427,6 +475,7 @@ final class AppModel: ObservableObject {
         anki = nil
         admin = nil
         wordBank = nil
+        deleteAccount = nil
         screen = .home
         if hadStudy { refreshOverview() }
     }
@@ -1150,6 +1199,62 @@ final class AppModel: ObservableObject {
         guard var a = admin else { return }
         change(&a)
         admin = a
+    }
+
+    // MARK: Plans (Premium subscription)
+
+    func openPlans() {
+        returnTo = nil
+        plans.message = nil
+        screen = .plans
+    }
+
+    func setPlanPeriod(_ period: BillingPeriod) {
+        plans.period = period
+        plans.message = nil
+    }
+
+    func upgrade() { runBilling { await self.billing.purchase(self.plans.period) } }
+
+    func manageSubscription() { runBilling { await self.billing.manage() } }
+
+    private func runBilling(_ action: @escaping () async -> PurchaseResult) {
+        guard !plans.busy else { return }
+        plans.busy = true
+        plans.message = nil
+        Task { [self] in
+            let result = await action()
+            plans.busy = false
+            plans.message = result == .notConfigured ? PlansLogic.notSwitchedOn : PlansLogic.purchaseFailed
+        }
+    }
+
+    // MARK: Delete account
+
+    /// Opens the delete-account screen. Super accounts don't get it (the server refuses them too).
+    func openDeleteAccount() {
+        guard AccountLogic.canDelete(tier) else { return }
+        returnTo = nil
+        deleteAccount = DeleteAccountState()
+        screen = .deleteAccount
+    }
+
+    func setDeleteTyped(_ v: String) { deleteAccount?.typed = v; deleteAccount?.error = nil }
+    func setDeletePassword(_ v: String) { deleteAccount?.password = v; deleteAccount?.error = nil }
+
+    func confirmDeleteAccount() {
+        guard let d = deleteAccount, !d.busy, AccountLogic.canConfirmDelete(typed: d.typed, password: d.password) else { return }
+        deleteAccount?.busy = true
+        deleteAccount?.error = nil
+        Task { [self] in
+            do {
+                try await authed { try await self.api.deleteAccount($0, password: d.password) }
+                deleteAccount = DeleteAccountState(done: true)
+            } catch {
+                deleteAccount?.busy = false
+                deleteAccount?.error = (error as? APIError)?.message ?? AccountLogic.deleteFailed
+            }
+        }
     }
 
     // MARK: Word Bank (Premium and Super)

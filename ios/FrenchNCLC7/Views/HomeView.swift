@@ -12,6 +12,13 @@ struct HomeView: View {
                 Text("Signed in as " + (model.username ?? model.session?.email ?? ""))
                     .font(.system(size: 12)).foregroundColor(c.muted).lineLimit(1)
                 Spacer()
+                if model.tier == .free {
+                    Button { model.openPlans() } label: {
+                        Text("Go Premium").font(.system(size: 11, weight: .medium)).foregroundColor(c.onAccent)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(c.accent).clipShape(Capsule())
+                    }
+                }
                 Text(model.tier.label)
                     .font(.system(size: 11, weight: .medium)).foregroundColor(c.link)
                     .padding(.horizontal, 8).padding(.vertical, 3)
@@ -128,6 +135,13 @@ struct HomeView: View {
                     }
                     .padding(.top, 14)
 
+                    Button { model.openPlans() } label: {
+                        Text("Plans and pricing").font(.system(size: 13, weight: .medium)).foregroundColor(c.text)
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(c.border))
+                    }
+                    .padding(.top, 14)
+
                     // Super users only: manage everyone's tier (the database refuses anyone else too)
                     if model.tier == .superUser {
                         Button { model.openAdmin() } label: {
@@ -141,6 +155,12 @@ struct HomeView: View {
                     Text("~90 minutes a day · Listening · Speaking · Reading · Writing")
                         .font(.system(size: 11)).foregroundColor(c.muted).multilineTextAlignment(.center)
                         .padding(.top, 20)
+
+                    // Not offered to Super accounts (the server refuses them too)
+                    if AccountLogic.canDelete(model.tier) {
+                        Button("Delete my account") { model.openDeleteAccount() }
+                            .font(.system(size: 12)).foregroundColor(c.muted).padding(.top, 14)
+                    }
                 }
                 .padding(.horizontal, 20).padding(.bottom, 30)
             }
