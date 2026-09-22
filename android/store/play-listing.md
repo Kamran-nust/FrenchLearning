@@ -41,8 +41,8 @@ account so you can pick up where you left off on any device.
 - **Privacy policy URL:** https://french-learning-rouge.vercel.app/privacy
 - **App icon (512×512):** `android/store/icon-512.png`
 - **Feature graphic (1024×500):** not made yet — needed before publishing.
-- **Screenshots:** at least 2 phone screenshots (min 320px, 16:9 or 9:16). I can capture clean ones
-  from the emulator on request.
+- **Screenshots:** 5 phone screenshots ready in `android/store/screenshots/` (1080x1920, 9:16):
+  Home, an Anki flashcard, Writing + AI feedback, Word Bank, Plans. Add more or reorder as you like.
 
 ---
 
@@ -110,5 +110,5 @@ not need to be declared as collected. If the questionnaire pushes you to declare
 1. Signing keystore generated and `keystore.properties` filled in (see android/README.md), then
    `bundleRelease` and upload the `.aab`.
 2. A support/contact email (also fills `SUPPORT_EMAIL` so the privacy + deletion pages show it).
-3. Feature graphic (1024×500) and at least 2 phone screenshots.
+3. Feature graphic (1024x500). Screenshots are done (android/store/screenshots/).
 4. Confirm the privacy policy URL resolves on your live domain.
