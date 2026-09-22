@@ -37,3 +37,29 @@ Compiles with Gradle 8.13 / AGP 8.10.1 / Kotlin 2.1.20 (`./gradlew :app:testDebu
 ## Plan data
 `app/src/main/assets/plan/*.json` is generated from the web app's data
 (`frontend/src/data`) by `node tools/export-plan-data.mjs` (run from the repo root).
+
+## Building a release for Google Play
+
+The app is set up for a signed release; version `1.0.0` (versionCode 1), `targetSdk 36`, minSdk 26.
+
+1. **Generate a signing keystore once** (keep the `.jks` and its passwords backed up somewhere safe -
+   losing them means you can never update the app on Play):
+   ```
+   keytool -genkey -v -keystore french-nclc7-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias french-nclc7
+   ```
+2. **Copy `keystore.properties.example` to `keystore.properties`** (repo root, gitignored) and fill in the
+   path and passwords. The keystore, `keystore.properties`, `*.jks` and `*.keystore` are all gitignored and
+   must never be committed.
+3. **Build the App Bundle** (this is what Play wants):
+   ```
+   JAVA_HOME=<jdk-21> ./gradlew :app:bundleRelease
+   ```
+   The signed bundle is `app/build/outputs/bundle/release/app-release.aab`. (Without `keystore.properties`
+   the bundle still builds but is unsigned - fine for a build check, not for uploading.)
+4. **Upload** the `.aab` to the Play Console. The store listing icon is `android/store/icon-512.png`
+   (source `android/store/icon.svg`); the in-app launcher icon is the adaptive
+   `res/mipmap-anydpi-v26/ic_launcher.xml` (gold open book on midnight navy, matching the app theme).
+
+Notes: R8/minify is off for the first release to avoid reflection/serialization surprises; it can be
+enabled later (`isMinifyEnabled = true`) with keep rules and a device test. The app requests only the
+INTERNET permission. Google also requires a privacy policy URL and the Data Safety form (see DESIGN_DOC).

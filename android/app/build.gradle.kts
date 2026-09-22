@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -12,9 +14,9 @@ android {
     defaultConfig {
         applicationId = "com.frenchnclc7.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Same backend as the web app. The publishable key is designed to be
@@ -36,9 +38,30 @@ android {
         jvmTarget = "17"
     }
 
+    // Release signing. The keystore and its passwords never live in git: they are read from
+    // keystore.properties (gitignored) at the repo root - see keystore.properties.example and
+    // android/README.md for how to generate the keystore. Without that file, release builds are
+    // left unsigned (fine for a local build check; the signed .aab needs the keystore).
+    signingConfigs {
+        val keystorePropsFile = rootProject.file("keystore.properties")
+        if (keystorePropsFile.exists()) {
+            val props = Properties()
+            keystorePropsFile.inputStream().use { props.load(it) }
+            create("release") {
+                storeFile = file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // R8/minify is left off for the first release to avoid any reflection/serialization
+            // surprises; it can be turned on later with keep rules and a device test.
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 }

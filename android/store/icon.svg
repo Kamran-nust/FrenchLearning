@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 108 108">
+  <!-- Play Store listing icon, 512x512 (Google rounds it, so this is a full square). Same open-book
+       mark as the in-app adaptive icon (res/drawable/ic_launcher_foreground.xml). -->
+  <rect width="108" height="108" fill="#0B1220"/>
+  <path fill="#F5B841" d="M53,37 L21,46 L21,72 L53,65 Z"/>
+  <path fill="#F5B841" d="M55,37 L87,46 L87,72 L55,65 Z"/>
+  <path fill="#D99A2B" d="M21,72 L53,65 L53,68 L21,75 Z"/>
+  <path fill="#D99A2B" d="M87,72 L55,65 L55,68 L87,75 Z"/>
+  <path fill="#3B82F6" d="M53,37 L55,37 L55,65 L53,65 Z"/>
+  <g stroke="#0B1220" stroke-width="2.4" stroke-linecap="round">
+    <path d="M27,50 L48,44.5"/>
+    <path d="M27,57 L48,51.5"/>
+    <path d="M81,50 L60,44.5"/>
+    <path d="M81,57 L60,51.5"/>
+  </g>
+</svg>
