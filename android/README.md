@@ -58,7 +58,7 @@ The app is set up for a signed release; version `1.0.0` (versionCode 1), `target
    the bundle still builds but is unsigned - fine for a build check, not for uploading.)
 4. **Upload** the `.aab` to the Play Console. The store listing icon is `android/store/icon-512.png`
    (source `android/store/icon.svg`); the in-app launcher icon is the adaptive
-   `res/mipmap-anydpi-v26/ic_launcher.xml` (gold open book on midnight navy, matching the app theme).
+   `res/mipmap-anydpi-v26/ic_launcher.xml` (a gold French-style crossed 7 for NCLC 7 inside a blue / white / red progress ring, on midnight navy).
 
 Notes: R8/minify is off for the first release to avoid reflection/serialization surprises; it can be
 enabled later (`isMinifyEnabled = true`) with keep rules and a device test. The app requests only the
