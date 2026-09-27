@@ -16,8 +16,8 @@ enum AnkiLimits {
     static let premiumDaily = 200
 
     /// Super's day (new words plus reviews) rises steadily from `superDayMin` to `superDayMax` across the plan.
-    static let superDayMin = 25
-    static let superDayMax = 50
+    static let superDayMin = 50
+    static let superDayMax = 100
 
     /// Words (cards) a person can see per day; nil means no limit.
     static func dailyLimit(_ tier: Tier) -> Int? {
@@ -28,7 +28,7 @@ enum AnkiLimits {
         }
     }
 
-    /// Cards in a Super user's day once `completedDays` are done (25 at 0, 50 at 300 or more).
+    /// Cards in a Super user's day once `completedDays` are done (50 at 0, 100 at 300 or more).
     static func superDayTotal(_ completedDays: Int) -> Int {
         let f = min(1.0, max(0.0, Double(completedDays) / 300.0))
         return Int((Double(superDayMin) + Double(superDayMax - superDayMin) * f + 0.5).rounded(.down))

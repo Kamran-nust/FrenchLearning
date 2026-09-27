@@ -79,7 +79,7 @@ object AnkiLogic {
     /**
      * Builds the queue for [currentDay]; null if that day doesn't exist.
      *  - [custom]: the person's Word Bank words; they join the review pool and are never "new".
-     *  - [tier]: Super gets a bigger day (25 rising to 50 cards) and Free/Premium sessions are held to their daily
+     *  - [tier]: Super gets a bigger day (50 rising to 100 cards) and Free/Premium sessions are held to their daily
      *    limit. Leave it null and the session is sized as it always was.
      *  - [practice] and [seen]: extra practice may only use what is left of today's allowance.
      */

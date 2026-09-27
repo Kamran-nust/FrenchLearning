@@ -52,10 +52,10 @@ final class WordBankAndLimitsTests: XCTestCase {
     }
 
     func testSuperDayStepsSteadilyFromTwentyFiveToFifty() {
-        XCTAssertEqual(AnkiLimits.superDayTotal(0), 25)
-        XCTAssertEqual(AnkiLimits.superDayTotal(150), 38)
-        XCTAssertEqual(AnkiLimits.superDayTotal(300), 50)
-        XCTAssertEqual(AnkiLimits.superDayTotal(301), 50)
+        XCTAssertEqual(AnkiLimits.superDayTotal(0), 50)
+        XCTAssertEqual(AnkiLimits.superDayTotal(150), 75)
+        XCTAssertEqual(AnkiLimits.superDayTotal(300), 100)
+        XCTAssertEqual(AnkiLimits.superDayTotal(301), 100)
         var last = 0
         for d in 0...300 {
             let t = AnkiLimits.superDayTotal(d)
@@ -86,11 +86,11 @@ final class WordBankAndLimitsTests: XCTestCase {
         XCTAssertEqual(session(done: 300, tier: .premium).items.count, days[300].cards.count + 40)
     }
 
-    func testASuperDayIsAtLeastTwentyFiveFromDayOneRisingToFifty() {
-        XCTAssertEqual(session(done: 0, tier: .superUser, custom: bank).items.count, 25)
-        XCTAssertEqual(session(done: 150, tier: .superUser, custom: bank).items.count, 38)
-        XCTAssertEqual(session(done: 300, tier: .superUser, custom: bank).items.count, 50)
-        XCTAssertEqual(session(done: 300, tier: .superUser, custom: bank, practice: true, seen: 9999).items.count, 50)
+    func testASuperDayIsAtLeastFiftyFromDayOneRisingToHundred() {
+        XCTAssertEqual(session(done: 0, tier: .superUser, custom: bank).items.count, 50)
+        XCTAssertEqual(session(done: 150, tier: .superUser, custom: bank).items.count, 75)
+        XCTAssertEqual(session(done: 300, tier: .superUser, custom: bank).items.count, 100)
+        XCTAssertEqual(session(done: 300, tier: .superUser, custom: bank, practice: true, seen: 9999).items.count, 100)
     }
 
     func testWordBankWordsAreReviewCardsNeverNew() {

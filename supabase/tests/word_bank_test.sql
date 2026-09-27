@@ -19,7 +19,7 @@ begin
   select count(*) into premium_n from word_bank_starter where tier_min = 'premium';
   select count(*) into super_n from word_bank_starter;
   if premium_n <> 45 then raise exception 'FAILED: expected 45 premium starter words, found %', premium_n; end if;
-  if super_n <> 148 then raise exception 'FAILED: expected 148 starter words in total, found %', super_n; end if;
+  if super_n <> 178 then raise exception 'FAILED: expected 178 starter words in total, found %', super_n; end if;
 
   perform set_config('request.jwt.claim.sub', u::text, true);
   perform set_config('request.jwt.claims', json_build_object('sub', u)::text, true);

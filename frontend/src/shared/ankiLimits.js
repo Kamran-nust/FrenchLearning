@@ -10,15 +10,15 @@ export const DAILY_WORD_LIMITS = { free: 30, premium: 200, super: null };
 
 // Super users' day: the total cards needed to complete a day (new words plus reviews). It rises steadily
 // from SUPER_DAY_MIN at the start of the plan to SUPER_DAY_MAX at the end. Change these two to retune it.
-export const SUPER_DAY_MIN = 25;
-export const SUPER_DAY_MAX = 50;
+export const SUPER_DAY_MIN = 50;
+export const SUPER_DAY_MAX = 100;
 
 // Unknown tiers count as free, so a mistake can only ever restrict, never unlock.
 export function dailyLimit(tier) {
   return tier in DAILY_WORD_LIMITS ? DAILY_WORD_LIMITS[tier] : DAILY_WORD_LIMITS.free;
 }
 
-// Cards in a Super user's day once `completedDays` days are done (25 at 0, 50 at 300 or more).
+// Cards in a Super user's day once `completedDays` days are done (50 at 0, 100 at 300 or more).
 export function superDayTotal(completedDays) {
   const f = Math.min(1, Math.max(0, completedDays / 300));
   return Math.round(SUPER_DAY_MIN + (SUPER_DAY_MAX - SUPER_DAY_MIN) * f);

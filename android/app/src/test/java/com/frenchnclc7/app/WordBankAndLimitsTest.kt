@@ -66,11 +66,11 @@ class WordBankAndLimitsTest {
     }
 
     @Test
-    fun superDayStepsSteadilyFromTwentyFiveToFifty() {
-        assertEquals(25, AnkiLimits.superDayTotal(0))
-        assertEquals(38, AnkiLimits.superDayTotal(150))
-        assertEquals(50, AnkiLimits.superDayTotal(300))
-        assertEquals(50, AnkiLimits.superDayTotal(301))
+    fun superDayStepsSteadilyFromFiftyToHundred() {
+        assertEquals(50, AnkiLimits.superDayTotal(0))
+        assertEquals(75, AnkiLimits.superDayTotal(150))
+        assertEquals(100, AnkiLimits.superDayTotal(300))
+        assertEquals(100, AnkiLimits.superDayTotal(301))
         var last = 0
         for (d in 0..300) {
             val t = AnkiLimits.superDayTotal(d)
@@ -109,11 +109,11 @@ class WordBankAndLimitsTest {
     }
 
     @Test
-    fun aSuperDayIsAtLeastTwentyFiveFromDayOneRisingToFifty() {
-        assertEquals(25, size(0, Tier.SUPER, bank).items.size)
-        assertEquals(38, size(150, Tier.SUPER, bank).items.size)
-        assertEquals(50, size(300, Tier.SUPER, bank).items.size)
-        assertEquals(50, size(300, Tier.SUPER, bank, practice = true, seen = 9999).items.size)
+    fun aSuperDayIsAtLeastFiftyFromDayOneRisingToHundred() {
+        assertEquals(50, size(0, Tier.SUPER, bank).items.size)
+        assertEquals(75, size(150, Tier.SUPER, bank).items.size)
+        assertEquals(100, size(300, Tier.SUPER, bank).items.size)
+        assertEquals(100, size(300, Tier.SUPER, bank, practice = true, seen = 9999).items.size)
     }
 
     @Test

@@ -45,11 +45,11 @@ describe("daily word limits", () => {
     expect(sessionCap("super", { practice: true, seen: 5000 })).toBeNull();
   });
 
-  it("steps super's day steadily from 25 up to 50", () => {
-    expect(superDayTotal(0)).toBe(25);
-    expect(superDayTotal(150)).toBe(38);
-    expect(superDayTotal(300)).toBe(50);
-    expect(superDayTotal(301)).toBe(50);
+  it("steps super's day steadily from 50 up to 100", () => {
+    expect(superDayTotal(0)).toBe(50);
+    expect(superDayTotal(150)).toBe(75);
+    expect(superDayTotal(300)).toBe(100);
+    expect(superDayTotal(301)).toBe(100);
     let last = 0;
     for (let d = 0; d <= 300; d++) {
       const t = superDayTotal(d);
@@ -100,19 +100,19 @@ describe("session size by tier", () => {
     expect(s.words.length).toBe(DAYS[300].c.length + 40);
   });
 
-  it("makes a super day at least 25 cards from day 1 (with Word Bank words filling the reviews)", () => {
+  it("makes a super day at least 50 cards from day 1 (with Word Bank words filling the reviews)", () => {
     const s = buildSession(at(0), new Set(), bank, { tier: "super" });
-    expect(s.words.length).toBe(25);
+    expect(s.words.length).toBe(50);
   });
 
-  it("makes a super day 38 cards halfway and 50 at the end", () => {
-    expect(buildSession(at(150), new Set(), bank, { tier: "super" }).words.length).toBe(38);
-    expect(buildSession(at(300), new Set(), bank, { tier: "super" }).words.length).toBe(50);
+  it("makes a super day 75 cards halfway and 100 at the end", () => {
+    expect(buildSession(at(150), new Set(), bank, { tier: "super" }).words.length).toBe(75);
+    expect(buildSession(at(300), new Set(), bank, { tier: "super" }).words.length).toBe(100);
   });
 
   it("puts no cap on super practice", () => {
     const s = buildSession(at(300), new Set(), bank, { tier: "super", practice: true, seen: 9999 });
-    expect(s.words.length).toBe(50);
+    expect(s.words.length).toBe(100);
   });
 });
 

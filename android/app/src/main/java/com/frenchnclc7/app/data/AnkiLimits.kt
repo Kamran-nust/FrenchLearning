@@ -22,8 +22,8 @@ object AnkiLimits {
     const val PREMIUM_DAILY = 200
 
     /** Super's day (new words plus reviews) rises steadily from [SUPER_DAY_MIN] to [SUPER_DAY_MAX] across the plan. */
-    const val SUPER_DAY_MIN = 25
-    const val SUPER_DAY_MAX = 50
+    const val SUPER_DAY_MIN = 50
+    const val SUPER_DAY_MAX = 100
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
@@ -34,7 +34,7 @@ object AnkiLimits {
         Tier.SUPER -> null
     }
 
-    /** Cards in a Super user's day once [completedDays] are done (25 at 0, 50 at 300 or more). */
+    /** Cards in a Super user's day once [completedDays] are done (50 at 0, 100 at 300 or more). */
     fun superDayTotal(completedDays: Int): Int {
         val f = (completedDays / 300.0).coerceIn(0.0, 1.0)
         return floor(SUPER_DAY_MIN + (SUPER_DAY_MAX - SUPER_DAY_MIN) * f + 0.5).toInt()

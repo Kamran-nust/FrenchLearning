@@ -34,7 +34,7 @@ function shuffle(list) {
 
 // customCards: the person's Word Bank words as cards (see toAnkiCards). They join the review pool along
 // with the words from earlier days; they are never "new".
-// options.tier: the person's tier. Super users get a bigger day (25 rising to 50 cards); free and premium
+// options.tier: the person's tier. Super users get a bigger day (50 rising to 100 cards); free and premium
 //   sessions are held to their daily limit. Leave it out and the session is sized as it always was.
 // options.practice / options.seen: extra practice may only use what is left of today's allowance.
 export function buildSession(progress, hardWordsSet, customCards = [], options = {}) {
