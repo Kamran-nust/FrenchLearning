@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<!-- Source for the Google Play feature graphic (1024x500). Render to android/store/feature-graphic.png.
+     Same brand as the app: midnight navy, the crossed-7 icon mark, Fraunces headings, IBM Plex Sans text. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=block" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; }
+  .fg { position: relative; width: 1024px; height: 500px; background: #0B1220; overflow: hidden; }
+  .mark { position: absolute; left: 0; top: 0; }
+  .text { position: absolute; left: 452px; top: 128px; width: 520px; }
+  .over { font: 600 19px 'IBM Plex Sans', sans-serif; letter-spacing: 3.2px; color: #F5B841; }
+  .title { font: 600 72px/1.05 'Fraunces', serif; color: #E8EDF6; margin-top: 14px; }
+  .stripe { display: flex; gap: 6px; margin-top: 20px; }
+  .stripe span { width: 46px; height: 6px; border-radius: 3px; }
+  .tag { font: 400 26px/1.35 'IBM Plex Sans', sans-serif; color: #8291AB; margin-top: 20px; }
+  .feat { font: 500 19px 'IBM Plex Sans', sans-serif; color: #EDE7DA; margin-top: 22px; letter-spacing: 0.3px; }
+  .feat b { color: #3B82F6; font-weight: 600; padding: 0 8px; }
+</style>
+</head>
+<body>
+<div class="fg">
+  <!-- the icon mark: same paths as android/store/icon.svg, scaled 4x and centred at (268, 250) -->
+  <svg class="mark" width="1024" height="500" viewBox="0 0 1024 500" aria-hidden="true">
+    <g transform="translate(52 34) scale(4)">
+      <g fill="none" stroke-width="4.5" stroke-linecap="round">
+        <path d="M54,26 A28,28 0 0 1 81.93,55.95" stroke="#3B82F6"/>
+        <path d="M80.92,61.72 A28,28 0 0 1 47.23,81.17" stroke="#EDE7DA"/>
+        <path d="M41.73,79.17 A28,28 0 0 1 29.75,40" stroke="#E5484D"/>
+      </g>
+      <path d="M43,41 H65 L51,69" fill="none" stroke="#F5B841" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M50.5,55.5 H64" fill="none" stroke="#EDE7DA" stroke-width="5" stroke-linecap="round"/>
+    </g>
+  </svg>
+  <div class="text">
+    <div class="over">A DAILY LANGUAGE JOURNEY</div>
+    <div class="title">French NCLC 7</div>
+    <div class="stripe"><span style="background:#3B82F6"></span><span style="background:#EDE7DA"></span><span style="background:#E5484D"></span></div>
+    <div class="tag">A 301-day study plan for the<br />French NCLC 7 / CLB 7 exam</div>
+    <div class="feat">Flashcards<b>·</b>Grammar<b>·</b>Listening<b>·</b>Writing</div>
+  </div>
+</div>
+</body>
+</html>
