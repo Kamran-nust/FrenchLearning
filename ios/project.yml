@@ -21,7 +21,10 @@ targets:
         # Take the version from the build settings above (XcodeGen would otherwise write a fixed "1.0" / "1").
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        UILaunchScreen: {}
+        # Launch screen: plain midnight navy (Assets.xcassets/LaunchBackground), so opening the app
+        # goes straight into the dark theme with no white flash.
+        UILaunchScreen:
+          UIColorName: LaunchBackground
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
     settings:
