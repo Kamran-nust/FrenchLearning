@@ -13,6 +13,8 @@ Word Bank and Anki daily limits (written, not yet compiled): "Word Bank" on Home
 
 Plans screen (Free vs Premium, monthly/yearly; In-App Purchase is a placeholder), Forgot password and Delete my account (not for Super): all written, not yet compiled.
 
+App icon (written, not yet compiled): the crossed 7 in a blue / white / red ring on midnight navy, same as Android and the web tab icon. It is a single 1024x1024 image in `FrenchNCLC7/Assets.xcassets/AppIcon.appiconset` (no transparency, as the App Store requires); Xcode generates every other size. `project.yml` sets `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon`, so run `xcodegen generate` again after pulling.
+
 Jump to a day: Back from a section opened via a day page returns to that day page (written, not yet compiled).
 
 Working in this phase (the same scope as the Android app):
