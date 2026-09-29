@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Flame, Flag, Volume2, RotateCcw, Check, ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { Flame, Flag, Volume2, RotateCcw, Check, ChevronLeft, ChevronRight, Lock, X } from "lucide-react";
 import { COLORS, GlobalStyle } from "../shared/theme.jsx";
 import { todayKey, waitForStorage, diagnoseStorage, readSaved } from "../shared/storage";
 import StorageNotice from "../shared/StorageNotice.jsx";
@@ -9,6 +9,7 @@ import { fetchWordBank } from "../lib/wordBank";
 import { toAnkiCards } from "../shared/wordBank";
 import { useTier } from "../TierContext.jsx";
 import { dailyLimit, limitReached, todaysCount } from "../shared/ankiLimits";
+import { MISSED_KEY, EMPTY_MISSED, parseMissed, toggleMissed, mergeMissed, unflagged } from "../shared/missedWords";
 
 const TOTAL_DAYS = DAYS.length;
 
@@ -64,6 +65,9 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
   const [storageDiag, setStorageDiag] = useState("");
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [isPracticeSession, setIsPracticeSession] = useState(false);
+  // "I got it wrong": this round's marks (in memory) and the saved list shown under "Day N done".
+  const [roundMissed, setRoundMissed] = useState({});
+  const [missed, setMissed] = useState(EMPTY_MISSED);
   const voiceRef = useRef(null);
 
   useEffect(() => {
@@ -103,9 +107,12 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
         custom = [];
       }
       let seen = 0;
+      let savedMissed = EMPTY_MISSED;
       if (diag.ok) {
         const rd = await readSaved("anki-daily");
         seen = todaysCount(rd.ok ? rd.value : null, todayKey());
+        const rm = await readSaved(MISSED_KEY);
+        savedMissed = parseMissed(rm.ok ? rm.value : null);
       }
       if (cancelled) return;
       seenRef.current = seen;
@@ -118,6 +125,7 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
       setStorageOk(diag.ok);
       setLoadFailed(failed);
       setStorageDiag(diag.message);
+      setMissed(savedMissed);
       if (startDay) {
         // Opened from Level/Day browsing: launch a bonus practice session for
         // that specific day, leaving real progress/streak untouched.
@@ -137,6 +145,15 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
         setRevealed(false);
         setPhase("session");
         beginCounting(sess);
+      } else if (savedMissed.words.length > 0) {
+        // Missed words are still waiting from the last round: reopen on its "Day N done" screen so they're
+        // seen before moving on. They clear when the person taps "Start next day".
+        setCompletionInfo({
+          day: savedMissed.day ?? Math.max(1, Math.min(finalProgress.current_day - 1, TOTAL_DAYS)),
+          remaining: TOTAL_DAYS - finalProgress.completed_days.length,
+          streak: finalProgress.streak_count,
+        });
+        setPhase(finalProgress.current_day > TOTAL_DAYS ? "finished" : "complete");
       } else if (finalProgress.current_day > TOTAL_DAYS) {
         setPhase("finished");
       } else {
@@ -225,8 +242,9 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
     setRevealed(true);
   }
 
-  // A new session starts: its first card is on screen, so it counts.
+  // A new session starts: its first card is on screen, so it counts, and no card is marked wrong yet.
   function beginCounting(sess) {
+    setRoundMissed({});
     countedRef.current = 0;
     if (sess) recordShown(1);
   }
@@ -260,7 +278,46 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
     setRevealed(false);
   }
 
+  function toggleWrong() {
+    if (!currentItem) return;
+    setRoundMissed((r) => toggleMissed(r, currentItem));
+  }
+
+  // Adds this round's "wrong" marks to the saved list shown under "Day N done".
+  function saveRoundMissed(day) {
+    const words = mergeMissed(missed.words, roundMissed);
+    if (words.length === 0) return;
+    const next = { day, words };
+    setMissed(next);
+    persist(MISSED_KEY, next);
+  }
+
+  // "Start next day" (or a reset): the list has been seen, so it goes.
+  function clearMissed() {
+    if (missed.words.length === 0 && missed.day === null) return;
+    setMissed(EMPTY_MISSED);
+    persist(MISSED_KEY, EMPTY_MISSED);
+  }
+
+  // Flags every missed word that isn't flagged yet, so they come back more often in reviews.
+  function flagAllMissed() {
+    const toAdd = unflagged(missed.words, hardWords);
+    if (toAdd.length === 0) return;
+    const next = new Set(hardWords);
+    const stats = { ...cardStats };
+    for (const w of toAdd) {
+      next.add(w.i);
+      const s = stats[w.i] || { times_seen: 0, times_marked_hard_total: 0, last_seen_day: null };
+      stats[w.i] = { ...s, times_marked_hard_total: s.times_marked_hard_total + 1 };
+    }
+    setHardWords(next);
+    setCardStats(stats);
+    persist("hard-words", Array.from(next));
+    persist("card-stats", stats);
+  }
+
   function finishSession() {
+    saveRoundMissed(session.dayObj.d);
     if (isPracticeSession) {
       // Bonus practice: no progress, streak, or card-stat changes. Populate
       // completionInfo from real (unchanged) progress so the results screen
@@ -342,6 +399,7 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
       setPhase("limit");
       return;
     }
+    clearMissed();
     const sess = buildSession(progress, hardWords, customCards, { tier, seen: seenRef.current });
     setSession(sess);
     setQIndex(0);
@@ -357,6 +415,7 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
     persist("progress", FRESH_PROGRESS);
     persist("hard-words", []);
     persist("card-stats", {});
+    clearMissed();
     if (limitReached(tier, seenRef.current)) {
       setConfirmingReset(false);
       setPhase("limit");
@@ -383,6 +442,9 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
       } else if (e.code === "ArrowLeft") {
         e.preventDefault();
         goToPrevWord();
+      } else if (e.code === "KeyX" && revealed) {
+        e.preventDefault();
+        toggleWrong();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -476,6 +538,60 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
     </div>
   );
 
+  const toFlag = unflagged(missed.words, hardWords);
+  const MissedList = missed.words.length > 0 && (
+    <div className="w-full max-w-xs mt-8 text-left">
+      <div className="flex items-center justify-between mb-2 px-1">
+        <span className="text-sm font-medium flex items-center gap-1.5" style={{ color: COLORS.danger }}>
+          <X size={15} />
+          Missed today
+        </span>
+        <span
+          className="text-xs px-2 py-0.5 rounded-full"
+          style={{ background: COLORS.dangerSoft, color: COLORS.danger }}
+        >
+          {missed.words.length}
+        </span>
+      </div>
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{ background: COLORS.card, border: "1px solid " + COLORS.border }}
+      >
+        {missed.words.map((w, idx) => (
+          <div
+            key={w.i}
+            className="flex items-center justify-between gap-2 px-3 py-2.5"
+            style={{ borderTop: idx ? "1px solid " + COLORS.border : "none" }}
+          >
+            <span className="text-sm min-w-0">
+              <span className="font-medium">{w.f}</span> <span style={{ color: COLORS.muted }}>{w.e}</span>
+            </span>
+            <button onClick={() => speak(w.f)} aria-label={"Hear " + w.f} className="shrink-0 p-1">
+              <Volume2 size={15} color={COLORS.muted} />
+            </button>
+          </div>
+        ))}
+      </div>
+      {toFlag.length > 0 ? (
+        <button
+          onClick={flagAllMissed}
+          className="w-full mt-3 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5"
+          style={{ color: COLORS.hard, border: "1px dashed " + COLORS.border }}
+        >
+          <Flag size={13} />
+          {toFlag.length === missed.words.length
+            ? "Flag all " + toFlag.length + " as hard"
+            : "Flag the other " + toFlag.length + " as hard"}
+        </button>
+      ) : (
+        <div className="text-xs mt-3 flex items-center justify-center gap-1" style={{ color: COLORS.muted }}>
+          <Check size={13} />
+          All flagged as hard
+        </div>
+      )}
+    </div>
+  );
+
   if (phase === "limit") {
     return (
       <div style={wrapStyle} className="min-h-screen flex flex-col">
@@ -534,6 +650,7 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
           <div className="text-sm max-w-xs" style={{ color: COLORS.muted }}>
             Longest streak: {progress.longest_streak} days. The vocabulary module is finished — nice work.
           </div>
+          {MissedList}
         </div>
         {ResetControl}
       </div>
@@ -572,6 +689,7 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
           >
             Practice this day again
           </button>
+          {MissedList}
         </div>
         {ResetControl}
       </div>
@@ -590,6 +708,7 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
   }
 
   const isHard = hardWords.has(currentItem.i);
+  const isMissed = Boolean(roundMissed[currentItem.i]);
   const promptText = currentItem.dir === "EF" ? currentItem.e : currentItem.f;
   const answerText = currentItem.dir === "EF" ? currentItem.f : currentItem.e;
   const directionLabel = currentItem.dir === "EF" ? "English → French" : "French → English";
@@ -751,6 +870,29 @@ export default function AnkiModule({ onBack, startDay, onOpenPlans }) {
           >
             {revealed ? "Answer shown" : "Show answer"}
           </button>
+
+          {(revealed || isMissed) && (
+            <>
+              <button
+                onClick={toggleWrong}
+                aria-pressed={isMissed}
+                className="w-full mt-2 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
+                style={{
+                  background: isMissed ? COLORS.dangerSoft : "transparent",
+                  color: COLORS.danger,
+                  border: "1px solid " + COLORS.danger,
+                }}
+              >
+                <X size={15} />
+                {isMissed ? "Marked as wrong" : "I got it wrong"}
+              </button>
+              {isMissed && (
+                <div className="text-xs text-center mt-1.5" style={{ color: COLORS.muted }}>
+                  Tap again to undo
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
