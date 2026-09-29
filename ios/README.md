@@ -11,6 +11,8 @@ Store needs a paid Apple Developer account.
 
 Word Bank and Anki daily limits (written, not yet compiled): "Word Bank" on Home is a personal word list for Premium (45 starter words, up to 500 of their own) and Super (178 starter words); its words join the Anki reviews from the next session. Anki shows "Words today: N of LIMIT" (Free 30, Premium 200, Super none), stops new sessions once the day's limit is used, and Super's day is 50 cards rising to 100.
 
+"I got it wrong" in Anki (written, not yet compiled): once the answer is shown, a red "I got it wrong" button sits under "Answer shown" (tap again to undo). After the day, the words marked wrong are listed under "Day N done" as "Missed today" with a "Flag all N as hard" button; the list is saved as `anki-missed` (same format as the web app) and cleared by "Start next day". Tests: `FrenchNCLC7Tests/MissedWordsTests.swift`.
+
 Plans screen (Free vs Premium, monthly/yearly; In-App Purchase is a placeholder), Forgot password and Delete my account (not for Super): all written, not yet compiled.
 
 App icon (written, not yet compiled): the crossed 7 in a blue / white / red ring on midnight navy, same as Android and the web tab icon. It is a single 1024x1024 image in `FrenchNCLC7/Assets.xcassets/AppIcon.appiconset` (no transparency, as the App Store requires); Xcode generates every other size. `project.yml` sets `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon`, so run `xcodegen generate` again after pulling. Version is 1.0.0 (build 1), read from `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`; the launch screen is plain midnight navy (`LaunchBackground` colour in the asset catalog).

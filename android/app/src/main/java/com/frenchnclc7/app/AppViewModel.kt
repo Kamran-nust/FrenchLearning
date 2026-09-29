@@ -31,6 +31,9 @@ import com.frenchnclc7.app.data.LessonLinks
 import com.frenchnclc7.app.data.FeedbackOutcome
 import com.frenchnclc7.app.data.FeedbackQuota
 import com.frenchnclc7.app.data.LocalStore
+import com.frenchnclc7.app.data.MissedList
+import com.frenchnclc7.app.data.MissedWord
+import com.frenchnclc7.app.data.MissedWords
 import com.frenchnclc7.app.data.PlanRepository
 import com.frenchnclc7.app.data.PlanSection
 import com.frenchnclc7.app.data.Progress
@@ -159,6 +162,10 @@ data class AnkiState(
     val counted: Int = 0,
     /** Today's limit is used up, so no new session can start until tomorrow. */
     val limitHit: Boolean = false,
+    /** Cards marked "I got it wrong" in the current round (by card id, in the order they were marked). */
+    val roundMissed: Map<String, MissedWord> = emptyMap(),
+    /** The saved list shown under "Day N done" (anki-missed); cleared when the next day starts. */
+    val missed: MissedList = MissedList(),
 )
 
 /** The delete-account screen: the typed confirmation, the password and where the request is up to. */
@@ -799,7 +806,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun newAnkiSession(a: AnkiState, day: Int, practice: Boolean): AnkiState {
         val tier = _state.value.tier
         if (AnkiLimits.limitReached(tier, a.dailySeen)) {
-            return a.copy(session = null, index = 0, revealed = false, practice = practice, phase = StudyPhase.DAY, limitHit = true, counted = 0)
+            return a.copy(
+                session = null, index = 0, revealed = false, practice = practice, phase = StudyPhase.DAY, limitHit = true, counted = 0,
+                roundMissed = emptyMap(),
+            )
         }
         val session = AnkiLogic.buildSession(
             ankiDays(), day, a.progress.completed_days.size, a.hard,
@@ -808,7 +818,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val first = if (AnkiLimits.dailyLimit(tier) != null && session != null && session.items.isNotEmpty()) 1 else 0
         return a.copy(
             session = session, index = 0, revealed = false, practice = practice, phase = StudyPhase.DAY,
-            limitHit = false, counted = first, dailySeen = a.dailySeen + first,
+            limitHit = false, counted = first, dailySeen = a.dailySeen + first, roundMissed = emptyMap(),
         )
     }
 
@@ -826,6 +836,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     listOf(
                         api.readAppValue(s, "progress"), api.readAppValue(s, "hard-words"),
                         api.readAppValue(s, "card-stats"), api.readAppValue(s, "anki-daily"),
+                        api.readAppValue(s, MissedWords.KEY),
                     )
                 }
                 var failed = false
@@ -849,6 +860,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     AppRead.Failed -> { failed = true; 0 }
                     is AppRead.Found -> AnkiLimits.todaysCount(r.text, today())
                 }
+                // An unreadable missed-words list just isn't shown; it never blocks Anki.
+                val missed = (reads[4] as? AppRead.Found)?.let { MissedWords.decode(it.text) } ?: MissedWords.EMPTY
                 ankiLoadFailed = failed
                 // Word Bank words (none for free accounts); never blocks Anki if they can't be loaded.
                 val custom = try { WordBankLogic.toCards(authed { api.wordBankList(it) }) } catch (e: ApiException) { emptyList() }
@@ -856,9 +869,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val finished = !practice && progress.current_day > TOTAL_DAYS
                 val base = AnkiState(
                     loading = false, progress = progress, hard = hard, stats = stats, loadFailed = failed,
-                    customCards = custom, dailySeen = seen,
+                    customCards = custom, dailySeen = seen, missed = missed,
                 )
-                val started = if (finished) base.copy(phase = StudyPhase.FINISHED)
+                val started = if (!practice && missed.words.isNotEmpty()) {
+                    // Missed words are still waiting from the last round: reopen on its "Day N done" screen so they're
+                    // seen before moving on. They clear when the person taps "Start next day".
+                    base.copy(
+                        completion = CompletionInfo(
+                            missed.day ?: (progress.current_day - 1).coerceIn(1, TOTAL_DAYS),
+                            TOTAL_DAYS - progress.completed_days.size, progress.streak_count,
+                        ),
+                        phase = if (finished) StudyPhase.FINISHED else StudyPhase.COMPLETE,
+                    )
+                } else if (finished) base.copy(phase = StudyPhase.FINISHED)
                 else newAnkiSession(base, if (practice) practiceDay!!.coerceIn(1, TOTAL_DAYS) else progress.current_day, practice)
                 updateAnki { started }
                 if (started.dailySeen != seen) persistDaily(started.dailySeen)
@@ -912,14 +935,49 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         persistAnki("hard-words", AnkiLogic.encodeHard(hard))
     }
 
+    /** "I got it wrong" on the current card; tapping again undoes it. */
+    fun ankiToggleWrong() {
+        val a = _state.value.anki ?: return
+        val item = a.session?.items?.getOrNull(a.index) ?: return
+        updateAnki { it.copy(roundMissed = MissedWords.toggle(it.roundMissed, item)) }
+    }
+
+    /** Adds this round's "wrong" marks to the saved list shown under "Day N done"; the list to show next. */
+    private fun saveRoundMissed(a: AnkiState, day: Int): MissedList {
+        val words = MissedWords.merge(a.missed.words, a.roundMissed)
+        if (words.isEmpty()) return a.missed
+        val next = MissedList(day, words)
+        persistAnki(MissedWords.KEY, MissedWords.encode(next))
+        return next
+    }
+
+    /** "Start next day" (or a reset): the list has been seen, so it goes. */
+    private fun clearMissed(a: AnkiState) {
+        if (a.missed.words.isEmpty() && a.missed.day == null) return
+        persistAnki(MissedWords.KEY, MissedWords.encode(MissedWords.EMPTY))
+    }
+
+    /** Flags every missed word that isn't flagged yet, so they come back more often in reviews. */
+    fun ankiFlagAllMissed() {
+        val a = _state.value.anki ?: return
+        val toAdd = MissedWords.unflagged(a.missed.words, a.hard)
+        if (toAdd.isEmpty()) return
+        val hard = a.hard + toAdd.map { it.i }
+        val stats = toAdd.fold(a.stats) { s, w -> AnkiLogic.markHard(s, w.i) }
+        updateAnki { it.copy(hard = hard, stats = stats) }
+        persistAnki("hard-words", AnkiLogic.encodeHard(hard))
+        persistAnki("card-stats", AnkiLogic.encodeStats(stats))
+    }
+
     private fun finishAnkiSession() {
         val a = _state.value.anki ?: return
         val session = a.session ?: return
+        val missed = saveRoundMissed(a, session.dayNumber)
         if (a.practice) {
             // Bonus practice: no progress, streak or card-stat changes.
             updateAnki {
                 it.copy(
-                    practice = false, phase = StudyPhase.COMPLETE,
+                    practice = false, phase = StudyPhase.COMPLETE, missed = missed, roundMissed = emptyMap(),
                     completion = CompletionInfo(session.dayNumber, TOTAL_DAYS - a.progress.completed_days.size, a.progress.streak_count),
                 )
             }
@@ -930,7 +988,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val stats = AnkiLogic.markSeen(a.stats, session)
         updateAnki {
             it.copy(
-                progress = next, stats = stats,
+                progress = next, stats = stats, missed = missed, roundMissed = emptyMap(),
                 completion = CompletionInfo(session.dayNumber, TOTAL_DAYS - next.completed_days.size, done.streak),
                 phase = if (next.current_day > TOTAL_DAYS) StudyPhase.FINISHED else StudyPhase.COMPLETE,
             )
@@ -954,7 +1012,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             updateAnki { it.copy(phase = StudyPhase.FINISHED) }
             return
         }
-        val started = newAnkiSession(a, a.progress.current_day, practice = false)
+        val built = newAnkiSession(a, a.progress.current_day, practice = false)
+        val started = if (built.limitHit) built else built.copy(missed = MissedWords.EMPTY)
+        if (!built.limitHit) clearMissed(a)
         updateAnki { started }
         if (started.dailySeen != a.dailySeen) persistDaily(started.dailySeen)
     }
@@ -965,7 +1025,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val fresh = SectionProgress()
         val a = _state.value.anki ?: return
         stopSpeech()
-        val reset = a.copy(progress = fresh, hard = emptySet(), stats = emptyMap(), confirmingReset = false, completion = null)
+        val reset = a.copy(progress = fresh, hard = emptySet(), stats = emptyMap(), confirmingReset = false, completion = null, missed = MissedWords.EMPTY)
+        clearMissed(a)
         val started = newAnkiSession(reset, 1, practice = false)
         updateAnki { started }
         if (started.dailySeen != a.dailySeen) persistDaily(started.dailySeen)

@@ -24,6 +24,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -34,12 +40,14 @@ import com.frenchnclc7.app.AppViewModel
 import com.frenchnclc7.app.StudyPhase
 import com.frenchnclc7.app.data.AnkiLimits
 import com.frenchnclc7.app.data.Direction
+import com.frenchnclc7.app.data.MissedWords
 import com.frenchnclc7.app.data.Tier
 import com.frenchnclc7.app.data.TOTAL_DAYS
 
 /**
  * The Anki flashcards: today's new words (French to English) followed by review words from earlier
- * days (random direction), with pronunciation, "hard" flags, a streak and bonus practice rounds.
+ * days (random direction), with pronunciation, "hard" flags, "I got it wrong" marks (listed after the day),
+ * a streak and bonus practice rounds.
  */
 @Composable
 fun AnkiScreen(a: AnkiState, tier: Tier, vm: AppViewModel) {
@@ -131,6 +139,7 @@ fun AnkiScreen(a: AnkiState, tier: Tier, vm: AppViewModel) {
                 Text("All $TOTAL_DAYS days done", color = c.text, fontSize = 24.sp)
                 Spacer(Modifier.height(6.dp))
                 Text("Longest streak: ${a.progress.longest_streak} days. The vocabulary module is finished — nice work.", color = c.muted, fontSize = 14.sp, textAlign = TextAlign.Center)
+                MissedList(a, vm)
             }
 
             a.phase == StudyPhase.COMPLETE && a.completion != null -> Column(
@@ -146,6 +155,7 @@ fun AnkiScreen(a: AnkiState, tier: Tier, vm: AppViewModel) {
                 AnkiButton("Start next day", filled = true) { vm.ankiContinueToNextDay() }
                 Spacer(Modifier.height(10.dp))
                 AnkiButton("Practice this day again", filled = false) { vm.ankiPracticeAgain(a.completion.day) }
+                MissedList(a, vm)
             }
 
             item == null || session == null -> Text("Nothing to show.", color = c.muted, fontSize = 14.sp, modifier = Modifier.padding(24.dp))
@@ -176,6 +186,7 @@ fun AnkiScreen(a: AnkiState, tier: Tier, vm: AppViewModel) {
 private fun Card(a: AnkiState, item: com.frenchnclc7.app.data.AnkiItem, total: Int, sessionDay: Int, limit: Int?, vm: AppViewModel) {
     val c = LocalColors.current
     val isHard = item.cardId in a.hard
+    val isMissed = item.cardId in a.roundMissed
     val prompt = if (item.dir == Direction.EF) item.english else item.french
     val answer = if (item.dir == Direction.EF) item.french else item.english
     val isLast = a.index + 1 >= total
@@ -243,6 +254,74 @@ private fun Card(a: AnkiState, item: com.frenchnclc7.app.data.AnkiItem, total: I
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(BorderStroke(1.dp, c.border), RoundedCornerShape(12.dp))
                 .clickable(enabled = !a.revealed) { vm.ankiShowAnswer() }.padding(vertical = 14.dp),
         )
+
+        // "I got it wrong": offered once the answer is shown; the word is listed after the day.
+        if (a.revealed || isMissed) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (isMissed) "✕  Marked as wrong" else "✕  I got it wrong",
+                color = c.danger, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(if (isMissed) c.danger.copy(alpha = 0.14f) else Color.Transparent)
+                    .border(BorderStroke(1.dp, c.danger), RoundedCornerShape(12.dp))
+                    .clickable { vm.ankiToggleWrong() }.padding(vertical = 14.dp),
+            )
+            if (isMissed) {
+                Text("Tap again to undo", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+            }
+        }
+    }
+}
+
+/** The words marked wrong, under the "Day N done" buttons, with one button to flag them all as hard. */
+@Composable
+private fun MissedList(a: AnkiState, vm: AppViewModel) {
+    val c = LocalColors.current
+    val words = a.missed.words
+    if (words.isEmpty()) return
+    val toFlag = MissedWords.unflagged(words, a.hard)
+    Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("✕  Missed today", color = c.danger, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text(
+                "${words.size}", color = c.danger, fontSize = 12.sp,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(c.danger.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.card)
+                .border(BorderStroke(1.dp, c.border), RoundedCornerShape(12.dp)),
+        ) {
+            words.forEachIndexed { idx, w ->
+                if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(c.border))
+                Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = c.text, fontWeight = FontWeight.Medium)) { append(w.f) }
+                            append("  ")
+                            withStyle(SpanStyle(color = c.muted)) { append(w.e) }
+                        },
+                        fontSize = 14.sp, modifier = Modifier.weight(1f).padding(vertical = 10.dp),
+                    )
+                    Text(
+                        "🔊", fontSize = 14.sp,
+                        modifier = Modifier.clip(CircleShape).semantics { contentDescription = "Hear " + w.f }
+                            .clickable { vm.speak(w.f) }.padding(10.dp),
+                    )
+                }
+            }
+        }
+        if (toFlag.isNotEmpty()) {
+            Text(
+                "⚑  " + (if (toFlag.size == words.size) "Flag all ${toFlag.size} as hard" else "Flag the other ${toFlag.size} as hard"),
+                color = c.hard, fontSize = 12.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(12.dp))
+                    .border(BorderStroke(1.dp, c.border), RoundedCornerShape(12.dp))
+                    .clickable { vm.ankiFlagAllMissed() }.padding(vertical = 12.dp),
+            )
+        } else {
+            Text("✓  All flagged as hard", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+        }
     }
 }
 

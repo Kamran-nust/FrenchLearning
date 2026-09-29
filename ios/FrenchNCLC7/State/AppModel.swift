@@ -115,6 +115,10 @@ struct AnkiState: Equatable {
     var counted = 0
     /// Today's limit is used up, so no new session can start until tomorrow.
     var limitHit = false
+    /// Cards marked "I got it wrong" in the current round, in the order they were marked.
+    var roundMissed: [MissedWord] = []
+    /// The saved list shown under "Day N done" (anki-missed); cleared when the next day starts.
+    var missed = MissedList()
 }
 
 /// The Plans screen: which billing period is showing and where a purchase attempt is up to.
@@ -846,6 +850,7 @@ final class AppModel: ObservableObject {
             out.phase = .day
             out.limitHit = true
             out.counted = 0
+            out.roundMissed = []
             return out
         }
         let session = AnkiLogic.buildSession(days: plan.days(.anki), currentDay: day, completedCount: a.progress.completed_days.count,
@@ -860,6 +865,7 @@ final class AppModel: ObservableObject {
         out.limitHit = false
         out.counted = first
         out.dailySeen = a.dailySeen + first
+        out.roundMissed = []
         return out
     }
 
@@ -878,7 +884,8 @@ final class AppModel: ObservableObject {
                     (try await self.api.readAppValue(s, key: "progress"),
                      try await self.api.readAppValue(s, key: "hard-words"),
                      try await self.api.readAppValue(s, key: "card-stats"),
-                     try await self.api.readAppValue(s, key: "anki-daily"))
+                     try await self.api.readAppValue(s, key: "anki-daily"),
+                     try await self.api.readAppValue(s, key: MissedWords.key))
                 }
                 var failed = false
                 var progress = SectionProgress()
@@ -908,6 +915,9 @@ final class AppModel: ObservableObject {
                 case .failed: failed = true
                 case .found(let text): seen = AnkiLimits.todaysCount(text, today: todayKey())
                 }
+                // An unreadable missed-words list just isn't shown; it never blocks Anki.
+                var missed = MissedWords.empty
+                if case .found(let text) = reads.4 { missed = MissedWords.decode(text) }
                 ankiLoadFailed = failed
                 // Word Bank words (none for free accounts); never blocks Anki if they can't be loaded.
                 let customWords = (try? await authed { try await self.api.wordBankList($0) }) ?? []
@@ -921,8 +931,17 @@ final class AppModel: ObservableObject {
                 base.loadFailed = failed
                 base.customWords = customWords
                 base.dailySeen = seen
+                base.missed = missed
                 let started: AnkiState
-                if finished {
+                if !practice && !missed.words.isEmpty {
+                    // Missed words are still waiting from the last round: reopen on its "Day N done" screen so they're
+                    // seen before moving on. They clear when the person taps "Start next day".
+                    base.completion = CompletionInfo(day: missed.day ?? min(max(progress.current_day - 1, 1), totalDays),
+                                                     remaining: totalDays - progress.completed_days.count,
+                                                     streak: progress.streak_count)
+                    base.phase = finished ? .finished : .complete
+                    started = base
+                } else if finished {
                     base.phase = .finished
                     started = base
                 } else {
@@ -999,11 +1018,51 @@ final class AppModel: ObservableObject {
         persistAnki("hard-words", AnkiLogic.encodeHard(hard))
     }
 
+    /// "I got it wrong" on the current card; tapping again undoes it.
+    func ankiToggleWrong() {
+        guard let a = anki, let session = a.session, a.index < session.items.count else { return }
+        let item = session.items[a.index]
+        updateAnki { $0.roundMissed = MissedWords.toggle($0.roundMissed, item) }
+    }
+
+    /// Adds this round's "wrong" marks to the saved list shown under "Day N done"; the list to show next.
+    private func saveRoundMissed(_ a: AnkiState, day: Int) -> MissedList {
+        let words = MissedWords.merge(a.missed.words, a.roundMissed)
+        if words.isEmpty { return a.missed }
+        let next = MissedList(day: day, words: words)
+        persistAnki(MissedWords.key, MissedWords.encode(next))
+        return next
+    }
+
+    /// "Start next day" (or a reset): the list has been seen, so it goes.
+    private func clearMissed(_ a: AnkiState) {
+        if a.missed.words.isEmpty && a.missed.day == nil { return }
+        persistAnki(MissedWords.key, MissedWords.encode(MissedWords.empty))
+    }
+
+    /// Flags every missed word that isn't flagged yet, so they come back more often in reviews.
+    func ankiFlagAllMissed() {
+        guard let a = anki else { return }
+        let toAdd = MissedWords.unflagged(a.missed.words, hard: a.hard)
+        if toAdd.isEmpty { return }
+        let hard = a.hard + toAdd.map { $0.i }
+        let stats = toAdd.reduce(a.stats) { AnkiLogic.markHard($0, $1.i) }
+        updateAnki {
+            $0.hard = hard
+            $0.stats = stats
+        }
+        persistAnki("hard-words", AnkiLogic.encodeHard(hard))
+        persistAnki("card-stats", AnkiLogic.encodeStats(stats))
+    }
+
     private func finishAnkiSession() {
         guard let a = anki, let session = a.session else { return }
+        let missed = saveRoundMissed(a, day: session.dayNumber)
         if a.practice {
             // Bonus practice: no progress, streak or card-stat changes.
             updateAnki {
+                $0.missed = missed
+                $0.roundMissed = []
                 $0.practice = false
                 $0.phase = .complete
                 $0.completion = CompletionInfo(day: session.dayNumber, remaining: totalDays - a.progress.completed_days.count,
@@ -1015,6 +1074,8 @@ final class AppModel: ObservableObject {
         let next = done.progress
         let stats = AnkiLogic.markSeen(a.stats, session)
         updateAnki {
+            $0.missed = missed
+            $0.roundMissed = []
             $0.progress = next
             $0.stats = stats
             $0.completion = CompletionInfo(day: session.dayNumber, remaining: totalDays - next.completed_days.count, streak: done.streak)
@@ -1039,7 +1100,11 @@ final class AppModel: ObservableObject {
             updateAnki { $0.phase = .finished }
             return
         }
-        let started = newAnkiSession(a, day: a.progress.current_day, practice: false)
+        var started = newAnkiSession(a, day: a.progress.current_day, practice: false)
+        if !started.limitHit {
+            clearMissed(a)
+            started.missed = MissedWords.empty
+        }
         anki = started
         if started.dailySeen != a.dailySeen { persistDaily(started.dailySeen) }
     }
@@ -1058,6 +1123,8 @@ final class AppModel: ObservableObject {
         reset.stats = [:]
         reset.confirmingReset = false
         reset.completion = nil
+        clearMissed(reset)
+        reset.missed = MissedWords.empty
         let started = newAnkiSession(reset, day: 1, practice: false)
         anki = started
         if started.dailySeen != before { persistDaily(started.dailySeen) }

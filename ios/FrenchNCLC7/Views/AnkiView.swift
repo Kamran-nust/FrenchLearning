@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// The Anki flashcards: today's new words (French to English) followed by review words from earlier
-/// days (random direction), with pronunciation, "hard" flags, a streak and bonus practice rounds.
+/// days (random direction), with pronunciation, "hard" flags, "I got it wrong" marks (listed after the day),
+/// a streak and bonus practice rounds.
 struct AnkiView: View {
     @EnvironmentObject var model: AppModel
     let a: AnkiState
@@ -110,6 +111,7 @@ struct AnkiView: View {
                 Text("All \(totalDays) days done").font(.system(size: 24)).foregroundColor(c.text)
                 Text("Longest streak: \(a.progress.longest_streak) days. The vocabulary module is finished — nice work.")
                     .font(.system(size: 14)).foregroundColor(c.muted).multilineTextAlignment(.center)
+                missedList(c)
             }
             .frame(maxWidth: .infinity).padding(.horizontal, 24).padding(.vertical, 48)
         } else if a.phase == .complete, let completion = a.completion {
@@ -132,6 +134,7 @@ struct AnkiView: View {
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(c.border))
                 }
                 .padding(.top, 6)
+                missedList(c)
             }
             .frame(maxWidth: .infinity).padding(.horizontal, 24).padding(.vertical, 48)
         } else if let session = a.session, session.items.indices.contains(a.index) {
@@ -140,6 +143,56 @@ struct AnkiView: View {
                 .id(session.items[a.index].key)
         } else {
             Text("Nothing to show.").font(.system(size: 14)).foregroundColor(c.muted).padding(24)
+        }
+    }
+
+    // MARK: Words marked wrong, under the "Day N done" buttons
+
+    @ViewBuilder
+    private func missedList(_ c: AppColors) -> some View {
+        let words = a.missed.words
+        if !words.isEmpty {
+            let toFlag = MissedWords.unflagged(words, hard: a.hard)
+            VStack(spacing: 0) {
+                HStack {
+                    Text("✕  Missed today").font(.system(size: 14, weight: .medium)).foregroundColor(c.danger)
+                    Spacer()
+                    Text("\(words.count)").font(.system(size: 12)).foregroundColor(c.danger)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(c.danger.opacity(0.14)).clipShape(Capsule())
+                }
+                .padding(.horizontal, 4).padding(.bottom, 8)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(words.enumerated()), id: \.element.i) { idx, w in
+                        if idx > 0 { Rectangle().fill(c.border).frame(height: 1) }
+                        HStack(spacing: 8) {
+                            Text(w.f).font(.system(size: 14, weight: .medium)).foregroundColor(c.text)
+                            Text(w.e).font(.system(size: 14)).foregroundColor(c.muted)
+                            Spacer(minLength: 4)
+                            Button { model.speak(w.f) } label: { Text("🔊").font(.system(size: 14)).padding(6) }
+                                .accessibilityLabel("Hear \(w.f)")
+                        }
+                        .padding(.leading, 12).padding(.trailing, 6).padding(.vertical, 4)
+                    }
+                }
+                .background(c.card)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(c.border))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                if !toFlag.isEmpty {
+                    Button { model.ankiFlagAllMissed() } label: {
+                        Text("⚑  " + (toFlag.count == words.count ? "Flag all \(toFlag.count) as hard" : "Flag the other \(toFlag.count) as hard"))
+                            .font(.system(size: 12, weight: .medium)).foregroundColor(c.hard)
+                            .frame(maxWidth: .infinity).padding(.vertical, 12)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(c.border, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                    }
+                    .padding(.top, 12)
+                } else {
+                    Text("✓  All flagged as hard").font(.system(size: 12)).foregroundColor(c.muted).padding(.top, 12)
+                }
+            }
+            .padding(.top, 32)
         }
     }
 
@@ -181,6 +234,7 @@ private struct AnkiCardView: View {
     var body: some View {
         let c = model.colors
         let isHard = a.hard.contains(item.cardId)
+        let isMissed = a.roundMissed.contains { $0.i == item.cardId }
         let prompt = item.dir == .ef ? item.english : item.french
         let answer = item.dir == .ef ? item.french : item.english
         let isLast = a.index + 1 >= total
@@ -254,6 +308,22 @@ private struct AnkiCardView: View {
             }
             .disabled(a.revealed)
             .padding(.top, 16)
+
+            // "I got it wrong": offered once the answer is shown; the word is listed after the day.
+            if a.revealed || isMissed {
+                Button { model.ankiToggleWrong() } label: {
+                    Text(isMissed ? "✕  Marked as wrong" : "✕  I got it wrong")
+                        .font(.system(size: 14, weight: .medium)).foregroundColor(c.danger)
+                        .frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .background(isMissed ? c.danger.opacity(0.14) : Color.clear)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(c.danger))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .padding(.top, 8)
+                if isMissed {
+                    Text("Tap again to undo").font(.system(size: 12)).foregroundColor(c.muted).padding(.top, 6)
+                }
+            }
         }
         .padding(.horizontal, 20)
         // French as the prompt is spoken as soon as the card appears; when English is the prompt,
